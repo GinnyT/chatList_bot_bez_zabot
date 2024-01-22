@@ -9,6 +9,7 @@
 old_temp/
 test.js
 storage/
+package-lock.json
 
 #
 
