@@ -1,0 +1,16 @@
+{
+  "dependencies": {
+    "dotenv": "^16.3.1",
+    "telegraf": "^4.15.3"
+  },
+  "name": "chatlist_bot_bez_zabot",
+  "version": "0.1.0",
+  "description": "Telegram bot that creates an individual ordered to-do or shopping list for each chat",
+  "main": "start_bot.js",
+  "scripts": {
+    "start": "node start_bot.js",
+    "pause": "node pause.js"
+  },
+  "author": "Tox GinnyTee Milkoff",
+  "license": "GPL-3.0"
+}
