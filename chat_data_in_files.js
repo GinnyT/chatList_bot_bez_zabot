@@ -42,9 +42,9 @@ module.exports = class Chat_data_in_files {
         } else {return undefined}
     };
 
-    get list_str() {
-        return this.list.map((v,i)=>{return (i+1)+') '+'<code>'+v+'</code>'}).join('\n'); //<code>
-    };
+    /* get list_str() {
+        return this.list.map((v,i)=>{return (i+1)+') '+v}).join('\n'); //<code>
+    }; */
 
     kick(index) {
         this.list.splice(index, 1);

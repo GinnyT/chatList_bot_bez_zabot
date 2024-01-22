@@ -97,7 +97,7 @@ async function shop_list(ctx, is_message_id = undefined, ms = 0, action_text='')
       //убить предыдущий список
       if (current_message_id) {
         if (data.current_shop_list && data.current_shop_list != current_message_id) {
-          ctx.telegram.editMessageText(ctx.chat.id, data.current_shop_list, 0, data.list_str)
+          ctx.telegram.editMessageText(ctx.chat.id, data.current_shop_list, 0, data.list.map((v,i)=>{return (i+1)+') '+v}).join('\n'), {parse_mode: 'html'})
           .catch(err=>console.error('не смог убить предыдущий список'));
         };
         //
@@ -127,7 +127,7 @@ async function help(ctx, is_message_id = undefined, ms = 0) {
   
   await new Promise(r => setTimeout(r, ms));
   
-  ctx.telegram.editMessageText(ctx.chat.id, current_message_id, 0, 'Как здесь все работает⁉ 🤨 Просто...\n\nПРОСТО\n🔲 1. напиши пару слов,\nИЛИ 🤔 занеси дело в ToDo-лист,\nИЛИ 🤓 накидай список покупок,\nИЛИ 🛫 запиши важную мелочь, чтобы не забыть в дорогу. \n\n🔲 2. Когда придет время, открой список 👇 (/shop)\n\n🔲 3. Сделай \u{1FAF5} что-то из списка и ткни в пункт.\nОн исчезнет 👍\n\n 👉 ✍ 👇Пиши же:', {reply_to_message_id: current_message_id}).catch(err=>console.error('/help не смог помочь, споткнулся: ', err.name));
+  ctx.telegram.editMessageText(ctx.chat.id, current_message_id, 0, 'Как здесь все работает⁉ 🤨 Просто...\n\n1⃣ Напиши пару слов,\n или 🤔 занеси дело в to-do лист,\n или 🤓 накидай список покупок,\n или 🛫 запиши важную мелочь, чтобы не забыть в дорогу. \n\n 2⃣ Когда придет время, открой список 👇 (/shop)\n\n3⃣ Сделай \u{1FAF5} что-то из списка и ткни в пункт. Он исчезнет 👍\n\n 👉 ✍ 👇Пиши же:', {reply_to_message_id: current_message_id}).catch(err=>console.error('/help не смог помочь, споткнулся: ', err.name));
 };
 
 async function clear_list(ctx) {
@@ -139,7 +139,7 @@ async function start(ctx) {
   await ctx.reply('Привет! 👋\nПомочь или сразу к делу? 👇✍', {/*reply_markup: HELP_BTN,  */ reply_to_message_id: ctx.message?.message_id} )
   .catch((err)=>{console.error('кнока ух', err)});
   const {message_id} = await ctx.reply('🤔');
-  shop_list(ctx, message_id, 0, 'с возвращением\\! 😘');
+  shop_list(ctx, message_id, 0, 'с возвращением! 😘');
 }
 
 //            Обработка кнопок
@@ -181,15 +181,8 @@ bot.action('print', async (ctx) => {
 //ответ на стикеры
 bot.on(message('sticker'), async (ctx) => {
   const {message_id} =  await ctx.reply('...😱...', {reply_to_message_id: ctx.message?.message_id});
-  //@TODO: здесь надо убить прошлый список, превратив его в list_str
   shop_list(ctx, message_id, 0, '🤚 стикеры не заношу...');
 });
-
-/* //ответ на ключевые слова
-bot.hears('/[^\/\@\#]', async (ctx) => {
-  const { message_id } = await ctx.reply('🤷‍♂️ незнакомая команда', {reply_to_message_id: ctx.message?.message_id} );
-  await shop_list(ctx, message_id, 1000);
-}); */
 
 //обработка текстового сообщения: любоЕ слово попадает в список, кроме ключевых слов выше, кроме команд и спец символов
 bot.on(message('text'), async (ctx) => {
