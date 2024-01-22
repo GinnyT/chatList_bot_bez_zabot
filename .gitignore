@@ -8,7 +8,7 @@
 #local_stuff
 old_temp/
 test.js
-storage/
+storage/*.*
 package-lock.json
 
 #
