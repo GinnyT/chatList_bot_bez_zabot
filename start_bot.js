@@ -14,12 +14,13 @@ const bot = new Telegraf(process.env.TOKEN);
 
 //глобальные переменные и константы
 let counter = 0;
-//let chat = {}; //объявляется в bot.use т.к. зависит от конкретного чата
 let data = {};
 
-const HELP_BTN = {inline_keyboard: [[{text: "помощь", callback_data: 'help'}]]};
-const LOAD_EMJ = '\u{1F90C}';
 let CHAT_NAME = 'Список';
+const LIST_BTN = {inline_keyboard: [[{text: CHAT_NAME, callback_data: 'list'}]]};
+const HELP_BTN = {inline_keyboard: [[{text: "помощь", callback_data: 'help'}]]};
+const LIST_N_HELP_BTN = {inline_keyboard: [[LIST_BTN.inline_keyboard[0][0], HELP_BTN.inline_keyboard[0][0]]]}
+const LOAD_EMJ = '\u{1F90C}';
 
 
 //оболочка обработки каждого сообщения
@@ -28,9 +29,10 @@ bot.use(async (ctx, next) => {
   console.log(`---------------\n${counter++}) прилетело из чата: ${ctx.chat.id} от ${ctx.from.username} тип: ${ctx.updateType}`);
   
   data = new DATA(ctx.chat.id);
-  
+  CHAT_NAME = data.list_name.name;
+
   await next();
-  
+
   await data.update();
 
   const ms = new Date() - start_time;
@@ -47,10 +49,10 @@ bot.telegram.setMyCommands([
     command: 'list',
     description: 'показать список 💬',
   },
-  /* { 
+  { 
     command: 'print',
     description: 'вывести список на "печать" в сообщение 🖨',
-  }, */
+  },
   /* {
     command: 'clear',
     description: 'очистить список 📛',
@@ -65,6 +67,7 @@ bot.telegram.setMyCommands([
 // команда на старт
 bot.start(async (ctx) => {
   console.log('ввел команду "/start"');
+  data.wait_for_name(false);
 
   await ctx.reply('Привет! 👋 Помочь или сразу к делу? 👇✍', {reply_to_message_id: ctx.message?.message_id} )
   .catch(err=>console.error(err));
@@ -77,6 +80,8 @@ bot.start(async (ctx) => {
 // показать список 
 bot.command('list', async (ctx) => {
   console.log('ввел команду "/list"');
+  data.wait_for_name(false);
+
   const {message_id} =  await ctx.reply(LOAD_EMJ, {reply_to_message_id: ctx.message?.message_id});
   show_list(ctx, message_id, 0, '👇 <i>текущий</i>');
 });
@@ -84,6 +89,8 @@ bot.command('list', async (ctx) => {
 // очистить список
 bot.command('clear', async (ctx) => {
   console.log('ввел команду "/clear"');
+  data.wait_for_name(false);
+
   const {message_id} =  await ctx.reply(LOAD_EMJ, {reply_to_message_id: ctx.message?.message_id});
   clear_list(ctx, message_id);
 });
@@ -91,23 +98,29 @@ bot.command('clear', async (ctx) => {
 //показать помощь
 bot.help(async (ctx) => {
   console.log('ввел команду "/help"');
+  data.wait_for_name(false);
+
   const {message_id} =  await ctx.reply(LOAD_EMJ, {reply_to_message_id: ctx.message?.message_id});
   help(ctx, message_id);
 });
 
 bot.command('print', async (ctx) => {
   console.log('ввел команду "/print"');
+  data.wait_for_name(false);
   //
   if (!data.is_empty) {
-    ctx.reply(CHAT_NAME+':\n'+data.list.map((v,i)=>{return (i+1)+') '+'<code>'+v+'</code>'}).join('\n'), {parse_mode: 'html'})
+    ctx.reply(CHAT_NAME+':\n'+data.list.map((v,i)=>{return (i+1)+') '+'<code>'+v+'</code>'}).join('\n'), {reply_to_message_id: ctx.message?.message_id, parse_mode: 'html'})
     .catch(err=>console.error('проблемы с выводом списка в сообщение', err));
   } else {
     ctx.reply(CHAT_NAME+': 🤷‍♂️ <i>текущий список пуст</i>', {reply_markup: HELP_BTN, reply_to_message_id: ctx.message?.message_id, parse_mode: 'html'});
   };
+
 });
 
 bot.settings(async (ctx) => {
   console.log('ввел команду "/settings"');
+  data.wait_for_name(false);
+  
   const {message_id} =  await ctx.reply(LOAD_EMJ, {reply_to_message_id: ctx.message?.message_id});
   settings_panel(ctx, message_id);
 });
@@ -197,19 +210,20 @@ async function settings_panel(ctx, is_message_id = undefined) {
 
 bot.action('set_list_name', async (ctx)=>{
   console.log('нажал "изменить имя"');
-
+  await ctx.reply('Введи новое имя для "'+CHAT_NAME+'" (<i>до 15 символов</i>):',{parse_mode:'html'});
+  data.wait_for_name(true);
 });
 
 bot.action('close_settings', async (ctx)=>{show_list(ctx)});
 
 bot.action('clear', async (ctx) => {
   console.log('нажал "очистить"');
-  await clear_list(ctx);
+  clear_list(ctx);
 });
 
 bot.action('help', async (ctx) => {
   console.log('нажал "помощь"');
-  await help(ctx);
+  help(ctx);
 });
 
 bot.action('print', async (ctx) => {
@@ -226,7 +240,7 @@ bot.action('print', async (ctx) => {
 
 bot.action('settings', async (ctx) => {
   console.log('нажал "настройки"');
-  settings_panel(ctx, ctx.callbackQuery?.message?.message_id);
+  settings_panel(ctx);
   //ctx.reply('/settings');
 });
 
@@ -246,6 +260,8 @@ bot.on("callback_query", async (ctx)=>{
         ctx.answerCbQuery('🤷‍♂️ текущий список пуст');
         ctx.editMessageText(CHAT_NAME+': 🤷‍♂️ <i>текущий список пуст</i>', {reply_markup: HELP_BTN, parse_mode: 'html'});
     };
+  } else if (ctx.callbackQuery.message?.message_id != data.last_list_message_id) {
+    ctx.answerCbQuery('🤷‍♂️ неактуальный список');
   };
 });
 
@@ -263,13 +279,21 @@ bot.on(message('sticker'), async (ctx) => {
 });
 
 //обработка текстового сообщения:
-//любоЕ слово попадает в список, кроме ключевых слов выше, кроме команд и спец. символов
 bot.on(message('text'), async (ctx) => {
   const text = ctx.message?.text;
   console.log(`написал сообщение: "${text}"`);
+
   try {
-    ///[^\._\-\/\*\(\)]/  /[a-zA-Zа-яА-Я0-9.-+]/
-    if ((/[^\/\@]/).test(text[0])) {
+    //обработка ввода нового имени списка чата
+    if (data.list_name.wait_for_name) {
+      const list_name15 = text.slice(0, 15);
+      await data.set_list_name(list_name15);
+      CHAT_NAME = list_name15;
+      data.wait_for_name(false);
+      const { message_id } = await ctx.reply('👍', {reply_to_message_id: ctx.message?.message_id});
+      settings_panel(ctx, message_id);
+    //любоЕ слово попадает в список, кроме ключевых слов выше, кроме команд и спец. символов
+    } else if ((/[^\/\@]/).test(text[0])) {
       const answer = await data.insert(text) ? `"<b>${text}</b>" добавлено 👍` : `🤷‍♂️ "<b>${text}</b>" уже было в списке`;
       const { message_id } = await ctx.reply('✍', {reply_to_message_id: ctx.message?.message_id});
       show_list(ctx, message_id, 0, answer);
