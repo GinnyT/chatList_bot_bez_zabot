@@ -8,8 +8,8 @@
 require('dotenv').config();
 //const Chat = require('./chat_data');          //данные в Global
 const DATA = require('./chat_data_in_files'); //данные в файле
-const { Telegraf, Markup } = require('telegraf');
-const { message } = require('telegraf/filters')
+const { Telegraf } = require('telegraf');
+const { message } = require('telegraf/filters');
 const bot = new Telegraf(process.env.TOKEN);
 
 //глобальные переменные и константы
@@ -17,14 +17,9 @@ let counter = 0;
 //let chat = {}; //объявляется в bot.use т.к. зависит от конкретного чата
 let data = {};
 
-const SHOP_BTN = {inline_keyboard: [[{text: "Шопить", callback_data: 'shop'}]]};
 const HELP_BTN = {inline_keyboard: [[{text: "помощь", callback_data: 'help'}]]};
 const LOAD_EMJ = '\u{1F90C}';
-const SHOP_N_HELP_BTN = {inline_keyboard: [[
-  {text: "Шопить", callback_data: 'shop'},
-  {text: "Помощь", callback_data: 'help'}]
-]};
-const CHAT_NAME = 'Список'
+let CHAT_NAME = 'Список';
 
 
 //оболочка обработки каждого сообщения
@@ -40,32 +35,50 @@ bot.use(async (ctx, next) => {
 
   const ms = new Date() - start_time;
   console.log(`---------------время обработки: ${ms}`);
-})
+});
 
-//                  Команды по приоритетам
+//                  ВВОДИМЫЕ КОМАНДЫ
+bot.telegram.setMyCommands([
+  {
+    command: 'help',
+    description: 'помочь? 🤔',
+  },
+  {
+    command: 'list',
+    description: 'показать список 💬',
+  },
+  /* { 
+    command: 'print',
+    description: 'вывести список на "печать" в сообщение 🖨',
+  }, */
+  /* {
+    command: 'clear',
+    description: 'очистить список 📛',
+  }, */
+  {
+    command: 'settings',
+    description: 'настройки ⚙',
+  },
+], {scope: {type: 'all_private_chats'}}, 'ru');
+
+
 // команда на старт
 bot.start(async (ctx) => {
   console.log('ввел команду "/start"');
-  await start(ctx);
-});
 
-/* // выход из чата
-bot.command('quit', async (ctx) => {
-  try {
-    await ctx.leaveChat();
-    ctx.reply('пользователь покинул чат');
-  }  catch(err) {
-    console.error(`ошибка обработки: ${ctx.updateType}`, err);
-    ctx.reply('нельзя покинуть приватный чат');
-  };
-}); */
+  await ctx.reply('Привет! 👋 Помочь или сразу к делу? 👇✍', {reply_to_message_id: ctx.message?.message_id} )
+  .catch(err=>console.error(err));
+
+  const {message_id} = await ctx.reply('🤔');
+  show_list(ctx, message_id, 0, '<i>старый список найден!</i> С возвращением! 😘');
+});
 
 //TODO: БАГ! написал в чате и вышщиб систему
 // показать список 
-bot.command('shop', async (ctx) => {
-  console.log('ввел команду "/shop"');
+bot.command('list', async (ctx) => {
+  console.log('ввел команду "/list"');
   const {message_id} =  await ctx.reply(LOAD_EMJ, {reply_to_message_id: ctx.message?.message_id});
-  shop_list(ctx, message_id, 0, '👇 текущий');
+  show_list(ctx, message_id, 0, '👇 <i>текущий</i>');
 });
 
 // очистить список
@@ -82,31 +95,43 @@ bot.help(async (ctx) => {
   help(ctx, message_id);
 });
 
-//                Функции обработки
-//@TODO:
-//  если есть список, покажи сразу
+bot.command('print', async (ctx) => {
+  console.log('ввел команду "/print"');
+  //
+  if (!data.is_empty) {
+    ctx.reply(CHAT_NAME+':\n'+data.list.map((v,i)=>{return (i+1)+') '+'<code>'+v+'</code>'}).join('\n'), {parse_mode: 'html'})
+    .catch(err=>console.error('проблемы с выводом списка в сообщение', err));
+  } else {
+    ctx.reply(CHAT_NAME+': 🤷‍♂️ <i>текущий список пуст</i>', {reply_markup: HELP_BTN, reply_to_message_id: ctx.message?.message_id, parse_mode: 'html'});
+  };
+});
 
-async function shop_list(ctx, is_message_id = undefined, ms = 0, action_text='') {
-  
+bot.settings(async (ctx) => {
+  console.log('ввел команду "/settings"');
+  const {message_id} =  await ctx.reply(LOAD_EMJ, {reply_to_message_id: ctx.message?.message_id});
+  settings_panel(ctx, message_id);
+});
+
+//                ФУНКЦИИ. ОБРАБОТКА. Повторяемый код
+
+async function show_list(ctx, is_message_id = undefined, ms = 0, action_text='') {
   const current_message_id = is_message_id || ctx.message?.message_id || ctx.callbackQuery?.message?.message_id;
-
-  console.log('Запущена функция построения списка shop_list.\n data.current_shop_list=',data.current_shop_list,'\ncurrent_message_id=',current_message_id);
-  
+  console.log('Запущена функция построения списка show_list.\n data.last_list_message_id=',data.last_list_message_id,'\ncurrent_message_id=',current_message_id);
   try {
     if (!data.is_empty) {
       //убить предыдущий список
       if (current_message_id) {
-        if (data.current_shop_list && data.current_shop_list != current_message_id) {
-          ctx.telegram.editMessageText(ctx.chat.id, data.current_shop_list, 0, data.list.map((v,i)=>{return (i+1)+') '+v}).join('\n'), {parse_mode: 'html'})
+        if (data.last_list_message_id && data.last_list_message_id != current_message_id) {
+          ctx.telegram.editMessageText(ctx.chat.id, data.last_list_message_id, 0, data.list.map((v,i)=>{return (i+1)+') '+'<code>'+v+'</code>'}).join('\n'), {parse_mode: 'html'})
           .catch(err=>console.error('не смог убить предыдущий список'));
         };
         //
-        data.set_current_shop_list(current_message_id);
+        data.set_last_list_message_id(current_message_id);
       };
 
       await new Promise(r => setTimeout(r, ms));
       //обновить текущий список
-      await ctx.telegram.editMessageText(ctx.chat.id, current_message_id, 0, CHAT_NAME+': <code>'+action_text+'</code>',
+      await ctx.telegram.editMessageText(ctx.chat.id, current_message_id, 0, CHAT_NAME+': '+action_text,
         {
           reply_markup: {
               inline_keyboard: data.list.map((element, index)=>{return [{text: element, callback_data: `kick ${index}`}]})
@@ -116,7 +141,7 @@ async function shop_list(ctx, is_message_id = undefined, ms = 0, action_text='')
           reply_to_message_id: ctx.message?.message_id,
         });
     } else {
-      await ctx.telegram.editMessageText(ctx.chat.id, current_message_id, 0, '🤷‍♂️ текущий список пуст', {reply_markup: HELP_BTN, reply_to_message_id: ctx.message?.message_id});
+      await ctx.telegram.editMessageText(ctx.chat.id, current_message_id, 0, CHAT_NAME+': 🤷‍♂️ <i>текущий список пуст</i>', {reply_markup: HELP_BTN, reply_to_message_id: ctx.message?.message_id, parse_mode: 'html'});
     };
   } catch(err) {console.error('список не строится', err)};    
   
@@ -127,36 +152,59 @@ async function help(ctx, is_message_id = undefined, ms = 0) {
   
   await new Promise(r => setTimeout(r, ms));
   
-  ctx.telegram.editMessageText(ctx.chat.id, current_message_id, 0, 'Как здесь все работает⁉ 🤨 Просто...\n\n1⃣ Напиши пару слов,\n или 🤔 занеси дело в to-do лист,\n или 🤓 накидай список покупок,\n или 🛫 запиши важную мелочь, чтобы не забыть в дорогу. \n\n 2⃣ Когда придет время, открой список 👇 (/shop)\n\n3⃣ Сделай \u{1FAF5} что-то из списка и ткни в пункт. Он исчезнет 👍\n\n 👉 ✍ 👇Пиши же:', {reply_to_message_id: current_message_id}).catch(err=>console.error('/help не смог помочь, споткнулся: ', err.name));
+  ctx.telegram.editMessageText(ctx.chat.id, current_message_id, 0, 'Как здесь все работает⁉ 🤨 Просто...\n\n1⃣ Напиши пару слов,\n или 🤔 занеси дело в to-do лист,\n или 🤓 накидай список покупок,\n или 🛫 запиши важную мелочь, чтобы не забыть в дорогу. \n\n2⃣ Когда придет время, открой список 👇 (/list)\n\n3⃣ Сделай \u{1FAF5} что-то из списка и ткни в пункт. Он исчезнет 👍\n\n 👉 ✍ 👇Пиши же:', {reply_to_message_id: current_message_id}).catch(err=>console.error('/help не смог помочь, споткнулся: ', err.name));
 };
 
-async function clear_list(ctx) {
+async function clear_list(ctx, is_message_id = undefined, ms = 0) {
+  const current_message_id = is_message_id || ctx.message?.message_id || ctx.callbackQuery?.message?.message_id;
   await data.clear_list();
-  ctx.editMessageText('🤲 список очищен!', {reply_markup: HELP_BTN});
-}
+  await new Promise(r => setTimeout(r, ms));
+  //ctx.answerCbQuery('🤲 список очищен!');
+  ctx.telegram.editMessageText(ctx.chat.id, current_message_id, 0, CHAT_NAME+': 🤲 <i>список очищен!</i>', {reply_markup: HELP_BTN, parse_mode: 'html'});
+};
 
-async function start(ctx) {
-  await ctx.reply('Привет! 👋\nПомочь или сразу к делу? 👇✍', {/*reply_markup: HELP_BTN,  */ reply_to_message_id: ctx.message?.message_id} )
-  .catch((err)=>{console.error('кнока ух', err)});
-  const {message_id} = await ctx.reply('🤔');
-  shop_list(ctx, message_id, 0, 'с возвращением! 😘');
-}
+async function settings_panel(ctx, is_message_id = undefined) {
+  const current_message_id = is_message_id || ctx.message?.message_id || ctx.callbackQuery?.message?.message_id;
+  console.log('Панель настроек');
+  try {
+    //убить предыдущий список
+    if (current_message_id) {
+      if (!data.is_empty && data.last_list_message_id && data.last_list_message_id != current_message_id) {
+        ctx.telegram.editMessageText(ctx.chat.id, data.last_list_message_id, 0, data.list.map((v,i)=>{return (i+1)+') '+'<code>'+v+'</code>'}).join('\n'), {parse_mode: 'html'})
+        .catch(err=>console.error('не смог убить предыдущий список'));
+      };
+      //
+      data.set_last_list_message_id(current_message_id);
+    };
 
-//            Обработка кнопок
+    //обновить текущий список
+    await ctx.telegram.editMessageText(ctx.chat.id, current_message_id, 0, '⚙ Настройки:',
+      {reply_markup: {
+        inline_keyboard: [
+          [ {text: "ИМЯ: ("+CHAT_NAME+")", callback_data: 'set_list_name'},
+            {text: "РАЗДЕЛИТЕЛЬ: (null)", callback_data: 'set_delimit'},],
+          [
+            {text: "РЕЖИМ: (сразу)", callback_data: 'done_mode'}
+          ],
+          [
+            {text:'⬅ К СПИСКУ', callback_data: 'close_settings'}
+          ],
+    ]}});
+  } catch(err) {console.error('панель настроек не строится', err)};    
+};
 
-/* bot.action('shop', async (ctx) => {
-  console.log('нажал "шопить"');
-  await shop_list(ctx);
-}); */
+//            КНОПКИ. ответы на CallBackQuery
+
+bot.action('set_list_name', async (ctx)=>{
+  console.log('нажал "изменить имя"');
+
+});
+
+bot.action('close_settings', async (ctx)=>{show_list(ctx)});
 
 bot.action('clear', async (ctx) => {
   console.log('нажал "очистить"');
   await clear_list(ctx);
-});
-
-bot.action('start', async (ctx) => {
-  console.log('нажал "сначала"');
-  await start(ctx);
 });
 
 bot.action('help', async (ctx) => {
@@ -169,65 +217,69 @@ bot.action('print', async (ctx) => {
   //
   if (!data.is_empty) {
     ctx.answerCbQuery('готово! 🖨 можно пересылать...');
-  
     ctx.reply(CHAT_NAME+':\n'+data.list.map((v,i)=>{return (i+1)+') '+'<code>'+v+'</code>'}).join('\n'), {parse_mode: 'html'})
     .catch(err=>console.error('проблемы с выводом списка в сообщение', err));
-  
   } else {
-    ctx.answerCbQuery('🤷‍♂️ текущий список пуст...', true);
+    ctx.answerCbQuery(CHAT_NAME+': 🤷‍♂️ текущий список пуст...');
   };
 });
 
-//ответ на стикеры
-bot.on(message('sticker'), async (ctx) => {
-  const {message_id} =  await ctx.reply('...😱...', {reply_to_message_id: ctx.message?.message_id});
-  shop_list(ctx, message_id, 0, '🤚 стикеры не заношу...');
+bot.action('settings', async (ctx) => {
+  console.log('нажал "настройки"');
+  settings_panel(ctx, ctx.callbackQuery?.message?.message_id);
+  //ctx.reply('/settings');
 });
 
-//обработка текстового сообщения: любоЕ слово попадает в список, кроме ключевых слов выше, кроме команд и спец символов
+bot.on("callback_query", async (ctx)=>{
+  //проверяем команду и проверяем, чтобы кнопка была нажата в текущем списке, иначе можно по индексу массива удалить не то значение
+  if (ctx.callbackQuery.data.slice(0,4) == 'kick' && ctx.callbackQuery.message?.message_id == data.last_list_message_id) {
+    const index = Number(ctx.callbackQuery.data.slice(5));
+    let item = data.list[index];
+    console.log(`нажал на элемент в списке №${index} "${item}"`);
+    if (index > -1) {
+      await data.kick(index);
+      await show_list(ctx, data.last_list_message_id, 0, `"<b>${item}</b>" - сделано 💪`);
+      ctx.answerCbQuery(item ? `${item} - сделано! 👌` : '🤷‍♂️ не нашел в текущем списке');
+    };
+    //если ничего не осталось:
+    if (data.is_empty) {
+        ctx.answerCbQuery('🤷‍♂️ текущий список пуст');
+        ctx.editMessageText(CHAT_NAME+': 🤷‍♂️ <i>текущий список пуст</i>', {reply_markup: HELP_BTN, parse_mode: 'html'});
+    };
+  };
+});
+
+//            Ответы на СООБЩЕНИЯ
+//ответ на стикеры
+bot.on(message('sticker'), async (ctx) => {
+  const sticker_value = 'стикер: '+ ctx.message.sticker.set_name +': '+ ctx.message.sticker.emoji;
+  //console.log('STIKER!\n'+JSON.stringify(ctx.message,null,1));
+  console.log('STIKER!\n'+sticker_value);
+
+  const answer = await data.insert(sticker_value) ? `"<b>${sticker_value}</b>" добавлено 👍` : `🤷‍♂️ "<b>${sticker_value}</b>" уже было в списке`;
+
+  const {message_id} =  await ctx.reply('😱', {reply_to_message_id: ctx.message?.message_id});
+  show_list(ctx, message_id, 0, answer);
+});
+
+//обработка текстового сообщения:
+//любоЕ слово попадает в список, кроме ключевых слов выше, кроме команд и спец. символов
 bot.on(message('text'), async (ctx) => {
   const text = ctx.message?.text;
   console.log(`написал сообщение: "${text}"`);
   try {
     ///[^\._\-\/\*\(\)]/  /[a-zA-Zа-яА-Я0-9.-+]/
     if ((/[^\/\@]/).test(text[0])) {
-      const answer = await data.insert(text) ? `"${text}" добавлено 👍` : `🤷‍♂️ "${text}" уже было в списке`;
-      //сделать оралку типа answerCbQuery
-      const { message_id } = await ctx.reply(answer + '...', {reply_to_message_id: ctx.message?.message_id});
-      shop_list(ctx, message_id, 0, answer);
+      const answer = await data.insert(text) ? `"<b>${text}</b>" добавлено 👍` : `🤷‍♂️ "<b>${text}</b>" уже было в списке`;
+      const { message_id } = await ctx.reply('✍', {reply_to_message_id: ctx.message?.message_id});
+      show_list(ctx, message_id, 0, answer);
     } else {
       const { message_id } = await ctx.reply(`🤷‍♂️ незнакомая команда`, {reply_to_message_id: ctx.message?.message_id} );
     };
-  }catch(err) { console.error('проблема с обработкой введеного текста',err); };
+  } catch(err) { console.error('проблема с обработкой введеного текста',err); };
 });
 
-//кнопочки списка 
-//@TODO:
-  //заменить на подходящую, например {  }
-  //проверить на синхронность
-
-bot.on("callback_query", async (ctx)=>{
-  //проверяем команду и проверяем, чтобы кнопка была нажата в текущем списке, иначе можно по индексу массива удалить не то значение
-  if (ctx.callbackQuery.data.slice(0,4) == 'kick' && ctx.callbackQuery.message?.message_id == data.current_shop_list) {
-    const index = Number(ctx.callbackQuery.data.slice(5));
-    let item = data.list[index];
-    console.log(`нажал на элемент в списке №${index} "${item}"`);
-    //@TODO! надо дополнительно проверить удаляемый элемент!
-    if (index > -1) {
-      await data.kick(index);
-      await shop_list(ctx, data.current_shop_list, 0, `"${item}" - сделано 💪`);
-      ctx.answerCbQuery(item ? `${item} - сделано! 👌` : '🤷‍♂️ не нашел в текущем списке:');
-    };
-
-    //если ничего не осталось:
-    if (data.is_empty) {
-        ctx.answerCbQuery('🤷‍♂️ текущий список пуст', true);
-        ctx.editMessageText('🤷‍♂️ текущий список пуст', {reply_markup: HELP_BTN});
-    };
-  };
-
-});
-
+//        ФИНАЛ. Стартуем...
 //обработка ошибок
 bot.catch((err, ctx) => {
   console.error(`ошибка обработки: ${ctx.updateType}`, err)
@@ -235,7 +287,6 @@ bot.catch((err, ctx) => {
 
 //запуск
 bot.launch();
-
 
 // Enable graceful stop
 process.once('SIGINT', () => {

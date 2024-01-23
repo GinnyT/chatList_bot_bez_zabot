@@ -15,7 +15,7 @@ module.exports = class Chat_data_in_files {
     id;
     list = []; 
     file_path = '';
-    current_shop_list;
+    last_list_message_id;
 
     constructor(chat_id) {
         this.id = chat_id;
@@ -23,7 +23,7 @@ module.exports = class Chat_data_in_files {
         try {
             const data = readFileSync(this.file_path);
             this.list = JSON.parse(data).list;
-            this.current_shop_list = JSON.parse(data).current_shop_list;
+            this.last_list_message_id = JSON.parse(data).last_list_message_id;
         } catch(err) {
             console.error(err.name,': ошибка файла (',this.file_path,')')
         }
@@ -42,10 +42,6 @@ module.exports = class Chat_data_in_files {
         } else {return undefined}
     };
 
-    /* get list_str() {
-        return this.list.map((v,i)=>{return (i+1)+') '+v}).join('\n'); //<code>
-    }; */
-
     kick(index) {
         this.list.splice(index, 1);
     };
@@ -56,15 +52,15 @@ module.exports = class Chat_data_in_files {
 
     async update() {
         //@TODO: нужны ли проверки, чтобы лишний раз не травмировать диск?
-        //console.log('начинаю писать в файл UPDATE data\n',{id: this.id, current_shop_list: this.current_shop_list, list: this.list});
-        writeFile(this.file_path, JSON.stringify({id: this.id, list: this.list, current_shop_list: this.current_shop_list}), { encoding: 'utf-8' });  
-        //console.log('выполнен UPDATE data\n',{id: this.id, current_shop_list: this.current_shop_list, list: this.list});
+        //console.log('начинаю писать в файл UPDATE data\n',{id: this.id, last_list_message_id: this.last_list_message_id, list: this.list});
+        writeFile(this.file_path, JSON.stringify({id: this.id, list: this.list, last_list_message_id: this.last_list_message_id}), { encoding: 'utf-8' });  
+        //console.log('выполнен UPDATE data\n',{id: this.id, last_list_message_id: this.last_list_message_id, list: this.list});
     };
 
-    async set_current_shop_list(message_id) {
+    async set_last_list_message_id(message_id) {
         if (message_id) {
-            //console.log('список установлен set_current_shop_list(message_id):\n',message_id);
-            this.current_shop_list = message_id;
+            //console.log('список установлен set_last_list_message_id(message_id):\n',message_id);
+            this.last_list_message_id = message_id;
         };
     };
 };
