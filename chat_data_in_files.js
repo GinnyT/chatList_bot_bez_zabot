@@ -14,7 +14,7 @@ module.exports = class Chat_data_in_files {
     constructor(chat_id, data) { 
         this.id = chat_id;
         this.list = [];
-        this.list_name = {};
+        this.list_name = {name: 'Список', wait_for_name: false};
 
         if (typeof data === 'undefined') {
             console.warn('данных из файла (',Chat_data_in_files.file_path(chat_id),') нет, инициализируем пустышку');
@@ -28,7 +28,7 @@ module.exports = class Chat_data_in_files {
                 const list_name_from_data = parsed_data.list_name;
                 if ( list_name_from_data && Object.keys(list_name_from_data).length > 0) {
                     this.list_name = list_name_from_data;
-                } else {this.list_name = {name: 'Список', wait_for_name: false}};
+                };
             } catch(err) {
                 console.error(err.name,': ошибка файла (',Chat_data_in_files.file_path(chat_id),')')
             };
@@ -36,7 +36,7 @@ module.exports = class Chat_data_in_files {
     };
 
     static async init(chat_id) {
-        const async_data = await readFile(Chat_data_in_files.file_path(chat_id));
+        const async_data = await readFile(Chat_data_in_files.file_path(chat_id)).catch(err=>console.error(err.name));
         return new Chat_data_in_files(chat_id, async_data);
     }
 

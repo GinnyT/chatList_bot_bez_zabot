@@ -4,7 +4,10 @@ require('dotenv').config({ path: `${process.env.NODE_ENV}.env` });
 const DATA = require('./chat_data_in_files'); //данные в файле
 const { Telegraf } = require('telegraf');
 const { message } = require('telegraf/filters');
+//@TODO: не нашел простой способ вызвать единожды асинхронную функцию getMe() так, чтобы получить актуальное имя бота, но не грузить запросом каждый вызов внутри use. 
+//пока решил зашить в окружение
 const bot = new Telegraf(process.env.TOKEN);
+console.log('Стартует бот: ',process.env.USER_NAME)
 
 //глобальные переменные и константы
 let counter = 0;
@@ -19,17 +22,23 @@ const LOAD_EMJ = '\u{1F90C}';
 
 //оболочка обработки каждого сообщения
 bot.use(async (ctx, next) => {
+
   const start_time = new Date();
-  console.log(`---------------\n${counter++}) прилетело из чата: ${ctx.chat.id} от ${ctx.from.username} тип: ${ctx.updateType}`);
+  //const getMe = await bot.telegram.getMe((res)=>{return res});
+  //console.log('Bot GetMe=\n',JSON.stringify(getMe,null,1));
+
+  console.log(`---------------\n${counter++}) прилетело из чата: ${ctx.chat?.id} от ${ctx.from.username} тип: ${ctx.updateType}`);
   
-  data = await DATA.init(ctx.chat.id);
-
-  CHAT_NAME = data.list_name.name;
-
-  await next();
-
-  await data.update();
-
+  if (ctx.updateType === 'inline_query') {
+    console.warn('inline_query (не обрабатывается)=\n',JSON.stringify(ctx.inlineQuery,null,1));
+  //
+  } else {
+    data = await DATA.init(ctx.chat?.id);
+    CHAT_NAME = data.list_name.name;
+    //
+    await next();
+    await data.update();
+  };
   const ms = new Date() - start_time;
   console.log(`---------------время обработки: ${ms}`);
 });
@@ -56,11 +65,11 @@ bot.telegram.setMyCommands([
     command: 'settings',
     description: 'настройки ⚙',
   },
-], {scope: {type: 'all_private_chats'}}, 'ru');
+], /* {scope: {type: 'all_private_chats'}}, 'ru' */);
 
 
 // команда на старт
-bot.start(async (ctx) => {
+bot.command('start', async (ctx) => {
   console.log('ввел команду "/start"');
   data.wait_for_name(false);
 
@@ -98,6 +107,7 @@ bot.help(async (ctx) => {
   help(ctx, message_id);
 });
 
+//вывести список на печать
 bot.command('print', async (ctx) => {
   console.log('ввел команду "/print"');
   data.wait_for_name(false);
@@ -111,6 +121,7 @@ bot.command('print', async (ctx) => {
 
 });
 
+//настройки
 bot.settings(async (ctx) => {
   console.log('ввел команду "/settings"');
   data.wait_for_name(false);
@@ -238,7 +249,7 @@ bot.action('settings', async (ctx) => {
   //ctx.reply('/settings');
 });
 
-bot.on("callback_query", async (ctx)=>{
+bot.on('callback_query', async (ctx)=>{
   //проверяем команду и проверяем, чтобы кнопка была нажата в текущем списке, иначе можно по индексу массива удалить не то значение
   if (ctx.callbackQuery.data.slice(0,4) == 'kick' && ctx.callbackQuery.message?.message_id == data.last_list_message_id) {
     const index = Number(ctx.callbackQuery.data.slice(5));
@@ -259,6 +270,11 @@ bot.on("callback_query", async (ctx)=>{
   };
 });
 
+/* bot.on('inline_query', async (ctx) => {
+  console.log('INLINE QUERY:', inlineQuery);
+  ctx.answerInlineQuery('YOHUUU!')
+}); */
+
 //            Ответы на СООБЩЕНИЯ
 //ответ на стикеры
 bot.on(message('sticker'), async (ctx) => {
@@ -272,10 +288,15 @@ bot.on(message('sticker'), async (ctx) => {
   show_list(ctx, message_id, 0, answer);
 });
 
+//для групповых чатов реагируем только, если нас спрашивают
+/* bot.hears( `@${process.env.USER_NAME}`, async (ctx)=>{
+  console.log('пустая собака или имя бота:\n',JSON.stringify(ctx.message,null,1));
+}); */
+
 //обработка текстового сообщения:
 bot.on(message('text'), async (ctx) => {
   const text = ctx.message?.text;
-  console.log(`написал сообщение: "${text}"`);
+  console.log(`в ${JSON.stringify(ctx.chat,null,1)} написал сообщение: "${text}"`);
 
   try {
     //обработка ввода нового имени списка чата
@@ -285,12 +306,39 @@ bot.on(message('text'), async (ctx) => {
       CHAT_NAME = list_name15;
       data.wait_for_name(false);
       const { message_id } = await ctx.reply('👍', {reply_to_message_id: ctx.message?.message_id});
-      settings_panel(ctx, message_id);
+      return settings_panel(ctx, message_id);
+
+    //в групповых чатах отвечать только на команды и прямые обращения (на @_ и @имя_бота_)
+    } else if (ctx.chat.type != 'private') {
+      /* console.log('сообщение в групповом чате');
+      console.log('text.slice(0,2) === \'@ \'',text.slice(0,2) === '@ ');
+      console.log('ИЛИ', text.slice(0,process.env.USER_NAME.length) === `@${process.env.USER_NAME}`);
+      console.log('--\n','text.slice(0,process.env.USER_NAME.length)=',text.slice(0,process.env.USER_NAME.length),`\n@${process.env.USER_NAME}=`, `@${process.env.USER_NAME}`) */
+      let answer;
+
+      if (text.slice(0,2) === '@ ') { 
+        answer = text.slice(2);
+      } else if (text.slice(0,process.env.USER_NAME.length+1) === `@${process.env.USER_NAME}`) {
+        answer = text.slice(process.env.USER_NAME.length + 1)
+      };
+
+      if (answer) {
+        console.log('наш случай! пишем: ',answer);
+
+        answer = await data.insert(answer) ? `"<b>${answer}</b>" добавлено 👍` : `🤷‍♂️ "<b>${answer}</b>" уже было в списке`;
+        const { message_id } = await ctx.reply('✍', {reply_to_message_id: ctx.message?.message_id});
+        return show_list(ctx, message_id, 0, answer);
+      } else {
+        console.log('НЕ наш случай! не подслушиавем.');
+      };
+
     //любоЕ слово попадает в список, кроме ключевых слов выше, кроме команд и спец. символов
-    } else if ((/[^\/\@]/).test(text[0])) {
+    } else if ((/[^\/]/).test(text[0])) {
       const answer = await data.insert(text) ? `"<b>${text}</b>" добавлено 👍` : `🤷‍♂️ "<b>${text}</b>" уже было в списке`;
       const { message_id } = await ctx.reply('✍', {reply_to_message_id: ctx.message?.message_id});
-      show_list(ctx, message_id, 0, answer);
+      return show_list(ctx, message_id, 0, answer);
+    
+    //все остальное написанное - непонятно
     } else {
       const { message_id } = await ctx.reply(`🤷‍♂️ незнакомая команда`, {reply_to_message_id: ctx.message?.message_id} );
     };
