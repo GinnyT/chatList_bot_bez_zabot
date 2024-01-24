@@ -3,7 +3,7 @@
 но победить работу асинхронных функций со свойствами класса я пока не смог 
 */
 
-require('dotenv').config();
+require('dotenv').config({ path: `${process.env.NODE_ENV}.env` });
 const { readFileSync } = require('fs');
 const { readFile, writeFile } = require('fs/promises');
 

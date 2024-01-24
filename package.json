@@ -8,7 +8,8 @@
   "description": "Telegram bot that creates an individual ordered to-do or shopping list for each chat",
   "main": "start_bot.js",
   "scripts": {
-    "start": "node start_bot.js",
+    "start-gt": "set NODE_ENV=gt&& node start_bot.js",
+    "start-cl": "set NODE_ENV=cl&& node start_bot.js",
     "pause": "node pause.js"
   },
   "author": "Tox GinnyTee Milkoff",

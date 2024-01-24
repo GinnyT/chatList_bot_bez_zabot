@@ -5,7 +5,8 @@
 */
 
 
-require('dotenv').config();
+require('dotenv').config({ path: `${process.env.NODE_ENV}.env` });
+
 //const Chat = require('./chat_data');          //данные в Global
 const DATA = require('./chat_data_in_files'); //данные в файле
 const { Telegraf } = require('telegraf');
