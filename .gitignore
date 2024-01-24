@@ -7,9 +7,9 @@
 
 #local_stuff
 old_temp/
-test.js
-storage/*.*
-package-lock.json
+tests/
+storage/*
+!storage/.gitkeep 
 
 #
 

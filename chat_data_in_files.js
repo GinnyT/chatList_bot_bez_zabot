@@ -5,7 +5,8 @@
 
 require('dotenv').config();
 const { readFileSync } = require('fs');
-const { writeFile } = require('fs/promises');
+const { readFile, writeFile } = require('fs/promises');
+
 const location = process.env.STORAGE_LOCATION;
 
 //      Хранилка реализована на файлах в папке storage
