@@ -1,10 +1,3 @@
-/*
-@TODO: 
-  //узнать, как толкать пуши, как в answerCallbackQuery!
-  //в bot.start проверять, есть ли список, если есть, выводить
-*/
-
-
 require('dotenv').config({ path: `${process.env.NODE_ENV}.env` });
 
 //const Chat = require('./chat_data');          //данные в Global
@@ -29,7 +22,8 @@ bot.use(async (ctx, next) => {
   const start_time = new Date();
   console.log(`---------------\n${counter++}) прилетело из чата: ${ctx.chat.id} от ${ctx.from.username} тип: ${ctx.updateType}`);
   
-  data = new DATA(ctx.chat.id);
+  data = await DATA.init(ctx.chat.id);
+
   CHAT_NAME = data.list_name.name;
 
   await next();
@@ -77,7 +71,6 @@ bot.start(async (ctx) => {
   show_list(ctx, message_id, 0, '<i>старый список найден!</i> С возвращением! 😘');
 });
 
-//TODO: БАГ! написал в чате и вышщиб систему
 // показать список 
 bot.command('list', async (ctx) => {
   console.log('ввел команду "/list"');
