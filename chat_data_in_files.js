@@ -50,7 +50,9 @@ module.exports = class Chat_data_in_files {
             this.list.push(element);
             //console.log(`занесли пока в память "${element}"`);
             return element;
-        } else {return undefined}
+        } else {
+            return undefined
+        };
     };
 
     kick(index) {
