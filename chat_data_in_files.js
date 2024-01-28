@@ -15,9 +15,10 @@ module.exports = class Chat_data_in_files {
         this.id = chat_id;
         this.list = [];
         this.list_name = {name: 'Список', wait_for_name: false};
+        this.delimiter = undefined;
 
         if (typeof data === 'undefined') {
-            console.warn('данных из файла (',Chat_data_in_files.file_path(chat_id),') нет, инициализируем пустышку');
+            console.warn('нет данных из файла (',Chat_data_in_files.file_path(chat_id),'), инициализируем пустышку');
         } else {
             //console.log('получил из файла в конструктор: \n',data)
             try {
@@ -29,14 +30,15 @@ module.exports = class Chat_data_in_files {
                 if ( list_name_from_data && Object.keys(list_name_from_data).length > 0) {
                     this.list_name = list_name_from_data;
                 };
+                this.delimiter = parsed_data.delimiter;
             } catch(err) {
-                console.error(err.name,': ошибка файла (',Chat_data_in_files.file_path(chat_id),')')
+                console.error('ошибка файла (',Chat_data_in_files.file_path(chat_id),'):\n', err.name);
             };
         };
     };
 
     static async init(chat_id) {
-        const async_data = await readFile(Chat_data_in_files.file_path(chat_id)).catch(err=>console.error(err.name));
+        const async_data = await readFile(Chat_data_in_files.file_path(chat_id)).catch(err=>console.error('ошибка чтения файла:\n',err.name));
         return new Chat_data_in_files(chat_id, async_data);
     }
 
@@ -44,14 +46,32 @@ module.exports = class Chat_data_in_files {
         return this.list.length == 0;
     };
 
+    #insert_value(v){
+        if (v && v.trim() != '') {
+            const element = v.toLowerCase().trim();
+            if (this.list.indexOf(element) === -1) {
+                this.list.push(element);
+                //console.log(`занесли пока в память "${element}"`);
+                return element;
+            } else {
+                return undefined
+            };
+        };
+    };
+
     insert(value) {
-        const element = value.toLowerCase();
-        if (this.list.indexOf(element) === -1) {
-            this.list.push(element);
-            //console.log(`занесли пока в память "${element}"`);
-            return element;
+        //@TODO: добавить информацию о том, кто внес данные - для групповых чатов
+        //value == {"element = '<string>', from = {}"}
+
+        if (this.delimiter) {
+            let last = undefined;
+            value.split(this.delimiter).forEach((v)=>{
+                const iter = this.#insert_value(v);
+                last = iter ? iter : last; 
+            });
+            return last;
         } else {
-            return undefined
+            return this.#insert_value(value);
         };
     };
 
@@ -66,7 +86,7 @@ module.exports = class Chat_data_in_files {
     async update() {
         //@TODO: нужны ли проверки, чтобы лишний раз не травмировать диск?
         //console.log('начинаю писать в файл UPDATE data\n','THIS=',JSON.stringify(this,null,1));
-        writeFile(Chat_data_in_files.file_path(this.id), JSON.stringify({id: this.id, list: this.list, last_list_message_id: this.last_list_message_id, list_name: this.list_name}), { encoding: 'utf-8' })
+        writeFile(Chat_data_in_files.file_path(this.id), JSON.stringify({id: this.id, list: this.list, last_list_message_id: this.last_list_message_id, list_name: this.list_name, delimiter: this.delimiter}), { encoding: 'utf-8' })
         .catch(err=>console.error(err.name,': ошибка записи в файл (',Chat_data_in_files.file_path(chat_id),')'));  
     };
 

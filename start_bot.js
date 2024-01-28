@@ -252,7 +252,8 @@ async function settings_panel(ctx, is_message_id = undefined) {
       {reply_markup: {
         inline_keyboard: [
           [ {text: "имя: ("+CHAT_NAME+")", callback_data: 'set_list_name_action'},
-            {text: "разделитель: (null)", callback_data: 'set_delimit'},],
+            {text: "разделитель: ("+data.delimiter+")", callback_data: 'set_delimit_action'},
+          ],
           [
             {text: "режим: (удалять сразу)", callback_data: 'done_mode'}
           ],
@@ -267,10 +268,40 @@ async function settings_panel(ctx, is_message_id = undefined) {
 
 bot.action('set_list_name_action', async (ctx)=>{
   console.log('нажал "изменить имя"');
-  kill_panel(ctx);
-  const {message_id} = await ctx.reply('Введи новое имя для "<b>' + escapeHtml(CHAT_NAME) + '</b>" (<i>до 15 символов</i>):',{parse_mode:'html'});
-  data.set_last_list_message_id(message_id);
+  await ctx.telegram.editMessageText(
+    ctx.chat.id, ctx.callbackQuery.message?.message_id, 0,
+    '⚙ Настройки: изменение имени списка...\n\n>> введи новое ИМЯ вместо "<b><s>' + escapeHtml(CHAT_NAME) + '</s></b>"\n<i>(до 15 символов)</i>:',
+    { parse_mode: 'html',
+      reply_markup: {
+      inline_keyboard: [
+        [
+          {text:'⬅ назад к настройкам', callback_data: 'settings'}
+        ],
+    ]}}).catch(err=>console.error('панель настроек для ввода нового имени не строится', err));
   data.wait_for_name(true);
+});
+
+bot.action('set_delimit_action', async (ctx)=> {
+  console.log('нажал "разделитель"');
+  await ctx.telegram.editMessageText(
+    ctx.chat.id, ctx.callbackQuery.message?.message_id, 0,
+    '⚙ Настройки: режим ввода значений списка через разделитель...\n\nЕсли разделитель задан, можно вводить несколько значений за один раз.\nНапример, ввод: "хлеб, лук, масло" без разделителя будет записан в одну строку списка. Если же выбрать разделитель "запятая", то список пополнится каждым значением отдельно: "хлеб", "лук" и "масло".\n\n>> выбери разделитель:',
+    { parse_mode: 'html',
+      reply_markup: {
+      inline_keyboard: [
+        [
+          {text:'(без разделителя)', callback_data: 'delimit null'}
+        ],
+        [{text:'(запятая)', callback_data: 'delimit comma'}, {text:'(точка с запятой)', callback_data: 'semicolon'}, {text:'(новая строка)', callback_data: 'enter'}],
+        [
+          {text:'⬅ назад к настройкам', callback_data: 'settings'}
+        ],
+    ]}}).catch(err=>console.error('панель настроек при вводе разделителя не строится', err));
+});
+
+//@TODO: заполнить, дописать!
+bot.action(/^delimit \w+/, async (ctx)=>{
+  console.log('выбран разделитель... ', ctx.callbackQuery?.data);
 });
 
 bot.action('show_action', async (ctx)=>{show_list(ctx,undefined, ms = 0, action_text='текущий 👇')});
@@ -320,12 +351,12 @@ bot.action('print', async (ctx) => {
 
 bot.action('settings', async (ctx) => {
   console.log('нажал "настройки"');
+  data.wait_for_name(false);
   settings_panel(ctx);
 });
 
-bot.on('callback_query', async (ctx)=>{
-  //проверяем команду и проверяем, чтобы кнопка была нажата в текущем списке, иначе можно по индексу массива удалить не то значение
-  if (ctx.callbackQuery.data.slice(0,4) == 'kick' && ctx.callbackQuery.message?.message_id == data.last_list_message_id) {
+bot.action(/^kick /, async (ctx) => {
+  if (ctx.callbackQuery.message?.message_id == data.last_list_message_id) {
     const index = Number(ctx.callbackQuery.data.slice(5));
     let item = data.list[index];
     console.log(`нажал на элемент в списке №${index} "${item}"`);
@@ -339,9 +370,13 @@ bot.on('callback_query', async (ctx)=>{
         ctx.answerCbQuery('🤷‍♂️ текущий список пуст');
         ctx.editMessageText('<b>'+escapeHtml(CHAT_NAME) + EMPTY_LIST_MES, {reply_markup: HELP_BTN, parse_mode: 'html'}).catch(err=>console.error(err));
     };
-  } else if (ctx.callbackQuery.message?.message_id != data.last_list_message_id) {
+  } else {
     ctx.answerCbQuery('🤷‍♂️ неактуальный список');
-  };
+  }
+});
+
+bot.on('callback_query', async (ctx)=>{
+  console.warn('незнакомая кнопка: ', ctx.callbackQuery?.data)
 });
 
 //            Ответы на СООБЩЕНИЯ
@@ -398,7 +433,7 @@ bot.on(message('text'), async (ctx) => {
     //любоЕ слово попадает в список, кроме ключевых слов выше, кроме команд и спец. символов
     } else if ((/[^\/]/).test(text[0])) {
 
-      const answer = escapeHtml(await data.insert(text)) ? `"${text}" добавлено 👍` : `🤷‍♂️ "${text}" уже было в списке`;
+      const answer = await data.insert(text) ? `"${text}" добавлено 👍` : `🤷‍♂️ "${text}" уже было в списке`;
       const { message_id } = await ctx.reply('...✍...', {reply_to_message_id: ctx.message?.message_id});
       data.set_last_list_message_id(message_id);
       return show_list(ctx, message_id, 0, answer);
