@@ -111,7 +111,7 @@ async function show_list_helper(ctx, is_message_id = undefined, ms = 0, action_t
         '<b>'+escapeHtml(CHAT_NAME)+'</b>: '+escapeHtml(action_text),
         {
           reply_markup: {
-              inline_keyboard: data.list.map((element, index)=>{return [{text: element.slice(0,64), callback_data: `kick ${index}`}]})
+              inline_keyboard: data.list.map((element, index)=>{return [{text: element, callback_data: `kick ${index}`}]})
               .concat([[{text: "📛 очистить", callback_data: 'clear_action'},{text: "⚙", callback_data: 'settings'}, {text: "🖨 вывести", callback_data: 'print'}, ]])
           },
           parse_mode: 'html',
