@@ -292,10 +292,48 @@ bot.action(/^kill_mode \w+/, async (ctx)=>{
     };
     await data.set_kill_mode(kill_mode);
   } catch (err) {console.error('не смог установить разделитель: ', err.name)};
-
   settings_panel(ctx);
 });
 
+bot.action(/^kick /, async (ctx) => {
+  if (ctx.callbackQuery.message?.message_id == data.last_list_message_id) {
+    const index = Number(ctx.callbackQuery.data.slice(5));
+    
+    console.log(`нажал на элемент в списке №${index} "${data.list[index]}"`);
+
+    if (data.kill_mode === 'easy' || !data.kill_mode) {
+      kill_helper(ctx, index);
+    } else {
+      //@TODO: закончить проработку confirmation mode
+      console.log('непростой режим удаления, не изи: ', data.kill_mode);
+      ctx.answerCbQuery(`${data.list[index]} - точно сделано?`);
+      //убедись, потом мочи
+      await ctx.telegram.editMessageText(ctx.chat.id, ctx.callbackQuery.message?.message_id, 0,
+        `✋ ${escapeHtml(CHAT_NAME)}: удалить "<b>${data.list[index]}</b>" из списка?\n\n>> подтверди действие:`,
+        {
+          reply_markup: {
+              inline_keyboard: [[{text:'⬅ отмена', callback_data: 'show_action'}, {text: "👍 сделано!", callback_data: `confirmed_kick_action ${index}`}]]
+          },
+          parse_mode: 'html',
+          reply_to_message_id: ctx.message?.message_id,
+        });
+    };
+  } else {
+    ctx.answerCbQuery('🤷‍♂️ неактуальный список');
+  }
+});
+
+bot.action(/^confirmed_kick_action /, async (ctx)=>{
+  const index = Number(ctx.callbackQuery.data.slice(22));
+  kill_helper(ctx, index);
+});
+
+async function kill_helper(ctx, index) {
+  const answer = data.list[index] ? `${data.list[index]} - сделано! 👌` : '🤷‍♂️ не нашел в текущем списке';
+  ctx.answerCbQuery(answer);
+  await data.kick(index);
+  show_list(ctx, data.last_list_message_id, 0, answer);
+};
 
 bot.action('set_list_name_action', async (ctx)=>{
   console.log('нажал "изменить имя"');
@@ -305,9 +343,7 @@ bot.action('set_list_name_action', async (ctx)=>{
     { parse_mode: 'html',
       reply_markup: {
       inline_keyboard: [
-        [
-          {text:'⬅ назад к настройкам', callback_data: 'settings'}
-        ],
+        [ {text:'⬅ назад к настройкам', callback_data: 'settings'}],
     ]}}).catch(err=>console.error('панель настроек для ввода нового имени не строится', err));
   data.wait_for_name(true);
 });
@@ -323,10 +359,9 @@ bot.action('set_delimit_action', async (ctx)=> {
         [ {text:'( без ): каждый ввод - новая запись', callback_data: 'delimit null'}],
         [ {text:'( ↲ ) с новой строки', callback_data: 'delimit enter'}],
         [ {text:'( , ) запятая', callback_data: 'delimit comma'},
-          {text:'( ; ) точка с запятой', callback_data: 'delimit semicolon'}],
-        [
-          {text:'⬅ назад к настройкам', callback_data: 'settings'}
+          {text:'( ; ) точка с запятой', callback_data: 'delimit semicolon'}
         ],
+        [ {text:'⬅ назад к настройкам', callback_data: 'settings'}],
     ]}}).catch(err=>console.error('панель настроек при вводе разделителя не строится', err));
 });
 
@@ -400,38 +435,6 @@ bot.action('settings', async (ctx) => {
   data.wait_for_name(false);
   settings_panel(ctx);
 });
-
-bot.action(/^kick /, async (ctx) => {
-  if (ctx.callbackQuery.message?.message_id == data.last_list_message_id) {
-    const index = Number(ctx.callbackQuery.data.slice(5));
-    let item = data.list[index];
-    console.log(`нажал на элемент в списке №${index} "${item}"`);
-
-    if (data.kill_mode === 'easy') {
-      await data.kick(index);
-      show_list(ctx, data.last_list_message_id, 0, `"${item}" - сделано 💪`);
-      ctx.answerCbQuery(item ? `${item} - сделано! 👌` : '🤷‍♂️ не нашел в текущем списке');
-    } else {
-      //@TODO: закончить проработку confirmation mode
-      console.log('непростой режим удаления, не изи: ', data.kill_mode);
-      ctx.answerCbQuery(`${item} - точно сделано?`);
-      //убедись, потом мочи
-      await ctx.telegram.editMessageText(ctx.chat.id, ctx.callbackQuery.message?.message_id, 0,
-        `✋ ${escapeHtml(CHAT_NAME)}: "<b>${item}</b>" будет удалено из списка? 😱\n\n>> подтверди действие:`,
-        {
-          reply_markup: {
-              inline_keyboard: [[{text:'⬅ отмена', callback_data: 'show_action'}, {text: "👍 сделано!", callback_data: 'confirmed_kick_action'}]]
-          },
-          parse_mode: 'html',
-          reply_to_message_id: ctx.message?.message_id,
-        });
-    };
-  } else {
-    ctx.answerCbQuery('🤷‍♂️ неактуальный список');
-  }
-});
-
-
 
 bot.on('callback_query', async (ctx)=>{
   console.warn('незнакомая кнопка: ', ctx.callbackQuery?.data)
