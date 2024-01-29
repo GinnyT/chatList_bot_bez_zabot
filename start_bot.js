@@ -7,7 +7,7 @@ const { message } = require('telegraf/filters');
 //@TODO: не нашел простой способ вызвать единожды асинхронную функцию getMe() так, чтобы получить актуальное имя бота, но не грузить запросом каждый вызов внутри use. 
 //пока решил зашить в окружение
 const bot = new Telegraf(process.env.TOKEN);
-console.log('Стартует бот: ',process.env.USER_NAME)
+console.log('Стартует бот: ',process.env.BOT_NAME)
 
 //глобальные переменные и константы
 //@TODO: рефакторить - вынести в хелперы
@@ -212,7 +212,7 @@ async function clear_list(ctx, is_message_id = undefined, ms = 0) {
   const current_message_id = is_message_id || ctx.message?.message_id || ctx.callbackQuery?.message?.message_id;
   //убедись, потом мочи
   await ctx.telegram.editMessageText(ctx.chat.id, current_message_id, 0,
-    '<b>'+escapeHtml(CHAT_NAME)+'</b>: 😱 ВЕСЬ СПИСОК БУДЕТ УДАЛЕН!',
+    '<b>'+escapeHtml(CHAT_NAME)+'</b>: 😱 ВЕСЬ СПИСОК БУДЕТ УДАЛЕН!\n\n>> подтверди действие:',
     {
       reply_markup: {
           inline_keyboard: [[{text:'⬅ отмена', callback_data: 'show_action'}, {text: "📛 очистить", callback_data: 'confirmed_clear_action'}]]
@@ -248,19 +248,18 @@ async function settings_panel(ctx, is_message_id = undefined) {
     };
 
     //обновить текущий список
-    await ctx.telegram.editMessageText(ctx.chat.id, current_message_id, 0, '⚙ Настройки:',
+    await ctx.telegram.editMessageText(ctx.chat.id, current_message_id, 0,
+      '⚙ Настройки: <i>здесь приведены настройки работы списка</i>\n\n<b>имя</b> - изменить название списка\n\n<b>разделитель</b> - ввод нескольких значений за один раз\n\n<b>режим</b> - удалять элементы по нажатию или с подтверждением\n\n>> выбери действие:',
       {reply_markup: {
         inline_keyboard: [
-          [ {text: "имя: ("+CHAT_NAME+")", callback_data: 'set_list_name_action'},
-            {text: "разделитель: ("+data.delimiter+")", callback_data: 'set_delimit_action'},
-          ],
-          [
-            {text: "режим: (удалять сразу)", callback_data: 'done_mode'}
-          ],
-          [
-            {text:'⬅ к списку', callback_data: 'show_action'}
-          ],
-    ]}});
+          [ {text: `имя: ( ${escapeHtml(CHAT_NAME)} )`, callback_data: 'set_list_name_action'}],
+          [ {text: `разделитель: ( ${data.delimiter === '\n' ? '↲' : data.delimiter} )`, callback_data: 'set_delimit_action'}],
+          [ {text: 'режим: ( удалять сразу )', callback_data: 'done_mode'}],
+          [ {text:'⬅ к списку', callback_data: 'show_action'} ],
+        ]},
+        parse_mode: 'html'
+      }
+    ).catch(err=>console.error('что-то не так с построением меню настроек: ', err.name));
   } catch(err) {console.error('панель настроек не строится', err)};    
 };
 
@@ -270,7 +269,7 @@ bot.action('set_list_name_action', async (ctx)=>{
   console.log('нажал "изменить имя"');
   await ctx.telegram.editMessageText(
     ctx.chat.id, ctx.callbackQuery.message?.message_id, 0,
-    '⚙ Настройки: изменение имени списка...\n\n>> введи новое ИМЯ вместо "<b><s>' + escapeHtml(CHAT_NAME) + '</s></b>"\n<i>(до 15 символов)</i>:',
+    `⚙ Настройки: изменение названия списка\n\n>> текущее значение: <s>${escapeHtml(CHAT_NAME)}</s>\n>> введи новое значение: <i>(до 15 символов)</i>:`,
     { parse_mode: 'html',
       reply_markup: {
       inline_keyboard: [
@@ -285,14 +284,14 @@ bot.action('set_delimit_action', async (ctx)=> {
   console.log('нажал "разделитель"');
   await ctx.telegram.editMessageText(
     ctx.chat.id, ctx.callbackQuery.message?.message_id, 0,
-    '⚙ Настройки: режим ввода значений списка через разделитель...\n\nЕсли разделитель задан, можно вводить несколько значений за один раз.\nНапример, ввод: "хлеб, лук, масло" без разделителя будет записан в одну строку списка. Если же выбрать разделитель "запятая", то список пополнится каждым значением отдельно: "хлеб", "лук" и "масло".\n\n>> выбери разделитель:',
+    `⚙ Настройки: режим ввода значений списка через разделитель...\n\nЕсли разделитель задан, можно вводить несколько значений за один раз. Например, ввод: "хлеб, лук, масло" без разделителя будет записан в одну строку списка. Если же выбрать разделитель "запятая", то список пополнится каждым значением отдельно: "хлеб", "лук" и "масло".\n\n>> текущий разделитель: ( ${data.delimiter === '\n' ? '↲' : data.delimiter} )\n>> выбери разделитель:`,
     { parse_mode: 'html',
       reply_markup: {
       inline_keyboard: [
-        [
-          {text:'(без разделителя)', callback_data: 'delimit null'}
-        ],
-        [{text:'(запятая)', callback_data: 'delimit comma'}, {text:'(точка с запятой)', callback_data: 'semicolon'}, {text:'(новая строка)', callback_data: 'enter'}],
+        [ {text:'( без ): каждый ввод - новая запись', callback_data: 'delimit null'}],
+        [ {text:'( ↲ ) с новой строки', callback_data: 'delimit enter'}],
+        [ {text:'( , ) запятая', callback_data: 'delimit comma'},
+          {text:'( ; ) точка с запятой', callback_data: 'delimit semicolon'}],
         [
           {text:'⬅ назад к настройкам', callback_data: 'settings'}
         ],
@@ -301,7 +300,26 @@ bot.action('set_delimit_action', async (ctx)=> {
 
 //@TODO: заполнить, дописать!
 bot.action(/^delimit \w+/, async (ctx)=>{
-  console.log('выбран разделитель... ', ctx.callbackQuery?.data);
+  console.log('выбран разделитель... "'+ctx.callbackQuery.data+'"');
+  try {
+    let delimiter = null;
+    switch (ctx.callbackQuery.data.slice(8)) {
+      case "comma":
+        delimiter = ",";
+        break;
+      case "semicolon":
+        delimiter = ";";
+        break;
+      case "enter":
+        delimiter = "\n";
+        break;
+      default:
+        delimiter = null;
+    };
+    await data.set_delimiter(delimiter);
+  } catch (err) {console.error('не смог установить разделитель: ', err.name)};
+
+  settings_panel(ctx);
 });
 
 bot.action('show_action', async (ctx)=>{show_list(ctx,undefined, ms = 0, action_text='текущий 👇')});
@@ -416,8 +434,8 @@ bot.on(message('text'), async (ctx) => {
       //@TODO: HTML_escape
       if (text.slice(0,2) === '@ ') { 
         answer = text.slice(2);
-      } else if (text.slice(0,process.env.USER_NAME.length+1) === `@${process.env.USER_NAME}`) {
-        answer = text.slice(process.env.USER_NAME.length + 1)
+      } else if (text.slice(0,process.env.BOT_NAME.length+1) === `@${process.env.BOT_NAME}`) {
+        answer = text.slice(process.env.BOT_NAME.length + 1)
       };
 
       if (answer) {

@@ -106,5 +106,8 @@ module.exports = class Chat_data_in_files {
             this.list_name.name = name.slice(0,15);
         };
     };
-    
+
+    async set_delimiter(delimiter) {
+        this.delimiter = delimiter;
+    };
 };
