@@ -73,27 +73,27 @@ bot.telegram.setMyCommands([
 ///--
 //
 ///--parts START, LIST and SHOW
-bot.action('show_action', async (ctx)=>{show_list_helper(ctx,undefined, ms = 0, action_text='текущий 👇')});
+bot.action('show_action', async (ctx)=>{show_list_helper(ctx,undefined, ms = 0, action_text=' 👇')});
 //
 bot.command('start', async (ctx) => {
   console.log('ввел команду "/start"');
   data.wait_for_name(false);
-  kick_panel_helper(ctx);
+  kill_panel_helper(ctx);
   await ctx.reply('Привет! Помочь или сразу к делу? 👇✍', {reply_to_message_id: ctx.message?.message_id} )
   .catch(err=>console.error(err));
 
   const {message_id} = await ctx.reply('...');
   data.set_last_list_message_id(message_id);
-  show_list_helper(ctx, message_id, 0, 'старый список найден! С возвращением! 😘');
+  show_list_helper(ctx, message_id, 0, 'старый список найден. с возвращением! \u{1FAF6}');
 });
 // показать список 
 bot.command('list', async (ctx) => {
   console.log('ввел команду "/list"');
   data.wait_for_name(false);
-  kick_panel_helper(ctx);
+  kill_panel_helper(ctx);
   const {message_id} =  await ctx.reply(LOAD_EMJ, {reply_to_message_id: ctx.message?.message_id});
   data.set_last_list_message_id(message_id);
-  show_list_helper(ctx, message_id, 0, 'текущий 👇');
+  show_list_helper(ctx, message_id, 0, ' 👇');
 });
 //
 async function show_list_helper(ctx, is_message_id = undefined, ms = 0, action_text='') {
@@ -103,7 +103,7 @@ async function show_list_helper(ctx, is_message_id = undefined, ms = 0, action_t
     if (!data.is_empty) {
       //убить предыдущую панель
       if (data.last_list_message_id && data.last_list_message_id != current_message_id) {
-        kick_panel_helper(ctx);
+        kill_panel_helper(ctx);
       };
       await new Promise(r => setTimeout(r, ms));
       //обновить текущий список
@@ -111,7 +111,7 @@ async function show_list_helper(ctx, is_message_id = undefined, ms = 0, action_t
         '<b>'+escapeHtml(CHAT_NAME)+'</b>: '+escapeHtml(action_text),
         {
           reply_markup: {
-              inline_keyboard: data.list.map((element, index)=>{return [{text: element, callback_data: `kick ${index}`}]})
+              inline_keyboard: data.list.map((element, index)=>{return [{text: element.slice(0,64), callback_data: `kick ${index}`}]})
               .concat([[{text: "📛 очистить", callback_data: 'clear_action'},{text: "⚙", callback_data: 'settings'}, {text: "🖨 вывести", callback_data: 'print'}, ]])
           },
           parse_mode: 'html',
@@ -128,7 +128,7 @@ async function show_list_helper(ctx, is_message_id = undefined, ms = 0, action_t
   
 };
 //
-async function kick_panel_helper(ctx, current_message_id = undefined) {
+async function kill_panel_helper(ctx, current_message_id = undefined) {
   try {
     if (data.last_list_message_id && current_message_id != data.last_list_message_id) {
       ctx.telegram.editMessageReplyMarkup(ctx.chat.id, data.last_list_message_id, undefined, {}).catch(err=>console.error('не нашел старых кнопок, чтобы их вычистить:\n',err.name));
@@ -164,7 +164,7 @@ bot.action('print', async (ctx) => {
 bot.command('print', async (ctx) => {
   console.log('ввел команду "/print"');
   data.wait_for_name(false);
-  kick_panel_helper(ctx);
+  kill_panel_helper(ctx);
   let current_message;
   //
   try {
@@ -201,7 +201,7 @@ bot.action('help_action', async (ctx) => {
 bot.help(async (ctx) => {
   console.log('ввел команду "/help"');
   data.wait_for_name(false);
-  kick_panel_helper(ctx);
+  kill_panel_helper(ctx);
   const {message_id} =  await ctx.reply(LOAD_EMJ, {reply_to_message_id: ctx.message?.message_id});
   data.set_last_list_message_id(message_id);
   help_helper(ctx, message_id);
@@ -263,9 +263,9 @@ bot.action(/^kick /, async (ctx) => {
     if (data.kick_mode === 'easy' || !data.kick_mode) {
       kick_helper(ctx, index);
     } else {
-      //@TODO: закончить проработку confirmation mode
       console.log('непростой режим удаления, не изи: ', data.kick_mode);
-      ctx.answerCbQuery(`${data.list[index]} - точно сделано?`);
+      ctx.answerCbQuery((data.list[index].length > 182 ? data.list[index].slice(0,182).concat('...') : data.list[index]).concat(' точно сделано?'))
+      .catch(err=>console.error('не смог показать всплывашку в action(/^kick /):\n',err));
       //убедись, потом мочи
       await ctx.telegram.editMessageText(ctx.chat.id, ctx.callbackQuery.message?.message_id, 0,
         `✋ ${escapeHtml(CHAT_NAME)}: удалить "<b>${data.list[index]}</b>" из списка?\n\n>> подтверди действие:`,
@@ -288,8 +288,8 @@ bot.action(/^confirmed_kick_action /, async (ctx)=>{
 });
 //
 async function kick_helper(ctx, index) {
-  const answer = data.list[index] ? `${data.list[index]} - сделано! 👌` : '🤷‍♂️ не нашел в текущем списке';
-  ctx.answerCbQuery(answer);
+  const answer = (data.list[index].length > 184 ? data.list[index].slice(0,184).concat('...') : data.list[index]).concat(' - сделано! 👍');
+  ctx.answerCbQuery(answer).catch(err=>console.error('не смог показать всплывашку в kick_helper:\n', err));
   await data.kick(index);
   show_list_helper(ctx, data.last_list_message_id, 0, answer);
 };
@@ -305,7 +305,7 @@ bot.action('settings', async (ctx) => {
 bot.settings(async (ctx) => {
   console.log('ввел команду "/settings"');
   data.wait_for_name(false);
-  kick_panel_helper(ctx);
+  kill_panel_helper(ctx);
   const {message_id} =  await ctx.reply(LOAD_EMJ, {reply_to_message_id: ctx.message?.message_id});
   data.set_last_list_message_id(message_id);
   settings_panel_helper(ctx, message_id);
@@ -411,7 +411,7 @@ bot.action('confirmed_clear_action', async (ctx)=>{
 bot.command('clear', async (ctx) => {
   console.log('ввел команду "/clear"');
   data.wait_for_name(false);
-  kick_panel_helper(ctx);
+  kill_panel_helper(ctx);
   const {message_id} =  await ctx.reply(LOAD_EMJ, {reply_to_message_id: ctx.message?.message_id});
   data.set_last_list_message_id(message_id);
   clear_list_helper(ctx, message_id);
@@ -443,7 +443,7 @@ bot.on('callback_query', async (ctx)=>{
 bot.on(message('sticker'), async (ctx) => {
   const sticker_value = 'стикер: '+ ctx.message.sticker.set_name +': '+ ctx.message.sticker.emoji;
   console.log('STIKER!\n'+sticker_value);
-  kick_panel_helper(ctx);
+  kill_panel_helper(ctx);
   const answer = await data.insert(sticker_value) ? `"${sticker_value}" добавлено 👍` : `🤷‍♂️ "${sticker_value}" уже было в списке`;
 
   const {message_id} =  await ctx.reply('...', {reply_to_message_id: ctx.message?.message_id});
@@ -454,7 +454,7 @@ bot.on(message('sticker'), async (ctx) => {
 ///--текстовые сообщения
 bot.on(message('text'), async (ctx) => {
   const text = ctx.message?.text;
-  kick_panel_helper(ctx);
+  kill_panel_helper(ctx);
   console.log(`в ${JSON.stringify(ctx.chat,null,1)} написал сообщение: "${text}"`);
   try {
     //обработка ввода нового имени списка чата
