@@ -15,7 +15,7 @@ module.exports = class Chat_data_in_files {
         this.list = [];
         this.list_name = {name: 'Список', wait_for_name: false};
         this.delimiter = undefined;
-        this.kill_mode = 'easy';
+        this.kick_mode = 'easy';
 
         if (typeof data === 'undefined') {
             console.warn('нет данных из файла (',Chat_data_in_files.file_path(chat_id),'), инициализируем пустышку');
@@ -31,7 +31,7 @@ module.exports = class Chat_data_in_files {
                     this.list_name = list_name_from_data;
                 };
                 this.delimiter = parsed_data.delimiter;
-                this.kill_mode = parsed_data.kill_mode;
+                this.kick_mode = parsed_data.kick_mode;
             } catch(err) {
                 console.error('ошибка файла (',Chat_data_in_files.file_path(chat_id),'):\n', err.name);
             };
@@ -87,7 +87,7 @@ module.exports = class Chat_data_in_files {
     async update() {
         //@TODO: нужны ли проверки, чтобы лишний раз не травмировать диск?
         //console.log('начинаю писать в файл UPDATE data\n','THIS=',JSON.stringify(this,null,1));
-        writeFile(Chat_data_in_files.file_path(this.id), JSON.stringify({id: this.id, list: this.list, last_list_message_id: this.last_list_message_id, list_name: this.list_name, delimiter: this.delimiter, kill_mode: this.kill_mode}), { encoding: 'utf-8' })
+        writeFile(Chat_data_in_files.file_path(this.id), JSON.stringify({id: this.id, list: this.list, last_list_message_id: this.last_list_message_id, list_name: this.list_name, delimiter: this.delimiter, kick_mode: this.kick_mode}), { encoding: 'utf-8' })
         .catch(err=>console.error(err.name,': ошибка записи в файл (',Chat_data_in_files.file_path(chat_id),')'));  
     };
 
@@ -112,7 +112,7 @@ async set_delimiter(delimiter) {
         this.delimiter = delimiter;
     };
 
-    async set_kill_mode(mode) {
-        this.kill_mode = mode;
+    async set_kick_mode(mode) {
+        this.kick_mode = mode;
     };
 };

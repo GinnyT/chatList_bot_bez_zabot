@@ -1,36 +1,31 @@
+///--GLOBAL statements
+//
+// подключения
 require('dotenv').config({ path: `${process.env.NODE_ENV}.env` });
 
-//const Chat = require('./chat_data');          //данные в Global
 const DATA = require('./chat_data_in_files'); //данные в файле
+
 const { Telegraf } = require('telegraf');
 const { message } = require('telegraf/filters');
 //@TODO: не нашел простой способ вызвать единожды асинхронную функцию getMe() так, чтобы получить актуальное имя бота, но не грузить запросом каждый вызов внутри use. пока решил зашить в окружение
 const bot = new Telegraf(process.env.TOKEN);
 console.log('Стартует бот: ',process.env.BOT_NAME)
 
-//глобальные переменные и константы
-//@TODO: рефакторить - вынести в хелперы
+// константы
 let counter = 0;
 let data = {};
-
 let CHAT_NAME = 'Список';
 const LIST_BTN = {inline_keyboard: [[{text: CHAT_NAME, callback_data: 'list'}]]};
-const HELP_BTN = {inline_keyboard: [[{text: "помощь", callback_data: 'help'}]]};
+const HELP_BTN = {inline_keyboard: [[{text: "помощь", callback_data: 'help_action'}]]};
 const LIST_N_HELP_BTN = {inline_keyboard: [[LIST_BTN.inline_keyboard[0][0], HELP_BTN.inline_keyboard[0][0]]]}
 const LOAD_EMJ = '...\u{1F90C}...';
 const EMPTY_LIST_MES = '</b>: <i>пока пусто...</i>🤷‍♂️ запиши что-нибудь в свой список:';
-
-// HELPERs
 const escapeHtml = (unsafe) => {
   return unsafe.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
 };
-const escapeAfew = (text) => {
-  ['<','>'].forEach(char => (text = text.replaceAll(char, '\\'+char)));
-  return text;
-};
-
-
-//оболочка обработки каждого сообщения
+///--
+//
+///--ОБОЛОЧКА обработки каждого сообщения
 bot.use(async (ctx, next) => {
 
   const start_time = new Date();
@@ -52,8 +47,7 @@ bot.use(async (ctx, next) => {
   const ms = new Date() - start_time;
   console.log(`---------------время обработки: ${ms}`);
 });
-
-//                  ВВОДИМЫЕ КОМАНДЫ
+// МЕНЮ команд
 bot.telegram.setMyCommands([
   {
     command: 'help',
@@ -74,58 +68,103 @@ bot.telegram.setMyCommands([
   {
     command: 'settings',
     description: 'настройки ⚙',
-  },
-], /* {scope: {type: 'all_private_chats'}}, 'ru' */);
-
-
-// команда на старт
+  },], /* {scope: {type: 'all_private_chats'}}, 'ru' */
+);
+///--
+//
+///--parts START, LIST and SHOW
+bot.action('show_action', async (ctx)=>{show_list_helper(ctx,undefined, ms = 0, action_text='текущий 👇')});
+//
 bot.command('start', async (ctx) => {
   console.log('ввел команду "/start"');
   data.wait_for_name(false);
-  kill_panel(ctx);
+  kick_panel_helper(ctx);
   await ctx.reply('Привет! Помочь или сразу к делу? 👇✍', {reply_to_message_id: ctx.message?.message_id} )
   .catch(err=>console.error(err));
 
   const {message_id} = await ctx.reply('...');
   data.set_last_list_message_id(message_id);
-  show_list(ctx, message_id, 0, 'старый список найден! С возвращением! 😘');
+  show_list_helper(ctx, message_id, 0, 'старый список найден! С возвращением! 😘');
 });
-
 // показать список 
 bot.command('list', async (ctx) => {
   console.log('ввел команду "/list"');
   data.wait_for_name(false);
-  kill_panel(ctx);
+  kick_panel_helper(ctx);
   const {message_id} =  await ctx.reply(LOAD_EMJ, {reply_to_message_id: ctx.message?.message_id});
   data.set_last_list_message_id(message_id);
-  show_list(ctx, message_id, 0, 'текущий 👇');
+  show_list_helper(ctx, message_id, 0, 'текущий 👇');
 });
-
-// очистить список
-bot.command('clear', async (ctx) => {
-  console.log('ввел команду "/clear"');
-  data.wait_for_name(false);
-  kill_panel(ctx);
-  const {message_id} =  await ctx.reply(LOAD_EMJ, {reply_to_message_id: ctx.message?.message_id});
-  data.set_last_list_message_id(message_id);
-  clear_list(ctx, message_id);
-});
-
-//показать помощь
-bot.help(async (ctx) => {
-  console.log('ввел команду "/help"');
-  data.wait_for_name(false);
-  kill_panel(ctx);
-  const {message_id} =  await ctx.reply(LOAD_EMJ, {reply_to_message_id: ctx.message?.message_id});
-  data.set_last_list_message_id(message_id);
-  help(ctx, message_id);
-});
-
-//вывести список на печать
+//
+async function show_list_helper(ctx, is_message_id = undefined, ms = 0, action_text='') {
+  const current_message_id = is_message_id || ctx.message?.message_id || ctx.callbackQuery?.message?.message_id;
+  console.log('Запущена функция построения списка show_list_helper.\n data.last_list_message_id=',data.last_list_message_id,'\ncurrent_message_id=',current_message_id);
+  try {
+    if (!data.is_empty) {
+      //убить предыдущую панель
+      if (data.last_list_message_id && data.last_list_message_id != current_message_id) {
+        kick_panel_helper(ctx);
+      };
+      await new Promise(r => setTimeout(r, ms));
+      //обновить текущий список
+      await ctx.telegram.editMessageText(ctx.chat.id, current_message_id, 0,
+        '<b>'+escapeHtml(CHAT_NAME)+'</b>: '+escapeHtml(action_text),
+        {
+          reply_markup: {
+              inline_keyboard: data.list.map((element, index)=>{return [{text: element, callback_data: `kick ${index}`}]})
+              .concat([[{text: "📛 очистить", callback_data: 'clear_action'},{text: "⚙", callback_data: 'settings'}, {text: "🖨 вывести", callback_data: 'print'}, ]])
+          },
+          parse_mode: 'html',
+          reply_to_message_id: ctx.message?.message_id,
+        });
+    } else {
+      await ctx.telegram.editMessageText(
+        ctx.chat.id, current_message_id, 0,
+        '<b>'+escapeHtml(CHAT_NAME)+EMPTY_LIST_MES,
+        {reply_markup: HELP_BTN, reply_to_message_id: ctx.message?.message_id, parse_mode: 'html'})
+      .catch(err=>console.error(err));
+    };
+  } catch(err) {console.error('список не строится', err)};    
+  
+};
+//
+async function kick_panel_helper(ctx, current_message_id = undefined) {
+  try {
+    if (data.last_list_message_id && current_message_id != data.last_list_message_id) {
+      ctx.telegram.editMessageReplyMarkup(ctx.chat.id, data.last_list_message_id, undefined, {}).catch(err=>console.error('не нашел старых кнопок, чтобы их вычистить:\n',err.name));
+    };
+  } catch(err) { console.error('не смог очистить панель под сообщением:\n', err.name)};
+};
+///--
+//
+///--part PRINT
+bot.action('print', async (ctx) => {
+  console.log('нажал "вывести"');
+  //
+  if (!data.is_empty) {
+    ctx.answerCbQuery('готово! 🖨 можно пересылать...');
+    ctx.editMessageText(
+      '<b>'+escapeHtml(CHAT_NAME)+'</b>:\n'+data.list.map((v,i)=>{return (i+1)+'. '+'<code>' + escapeHtml(v) + '</code>'}).join('\n'),
+      {
+        reply_markup: {
+            inline_keyboard: [[
+              {text: "📛 очистить", callback_data: 'clear_action'},
+              {text: "⚙", callback_data: 'settings'},
+              {text: "🖥️ показать", callback_data: 'show_action'},
+        ]]},
+        parse_mode: 'html',
+        reply_to_message_id: ctx.message?.message_id,
+      }
+    )
+    .catch(err=>console.error('проблемы с выводом списка в сообщение', err));
+  } else {
+    ctx.answerCbQuery(CHAT_NAME+': 🤷‍♂️ текущий список пуст...');
+};});
+//
 bot.command('print', async (ctx) => {
   console.log('ввел команду "/print"');
   data.wait_for_name(false);
-  kill_panel(ctx);
+  kick_panel_helper(ctx);
   let current_message;
   //
   try {
@@ -151,52 +190,24 @@ bot.command('print', async (ctx) => {
     data.set_last_list_message_id(current_message.message_id);
   } catch(err) {console.error('проблемы с выводом списка в сообщение (command(/print):\n', err);};
 });
-
-//настройки
-bot.settings(async (ctx) => {
-  console.log('ввел команду "/settings"');
+///
+//
+///--part HELP
+bot.action('help_action', async (ctx) => {
+  console.log('нажал "помощь"');
+  help_helper(ctx);
+});
+//
+bot.help(async (ctx) => {
+  console.log('ввел команду "/help"');
   data.wait_for_name(false);
-  kill_panel(ctx);
+  kick_panel_helper(ctx);
   const {message_id} =  await ctx.reply(LOAD_EMJ, {reply_to_message_id: ctx.message?.message_id});
   data.set_last_list_message_id(message_id);
-  settings_panel(ctx, message_id);
+  help_helper(ctx, message_id);
 });
-
-//                ФУНКЦИИ. ОБРАБОТКА. Повторяемый код
-
-async function show_list(ctx, is_message_id = undefined, ms = 0, action_text='') {
-  const current_message_id = is_message_id || ctx.message?.message_id || ctx.callbackQuery?.message?.message_id;
-  console.log('Запущена функция построения списка show_list.\n data.last_list_message_id=',data.last_list_message_id,'\ncurrent_message_id=',current_message_id);
-  try {
-    if (!data.is_empty) {
-      //убить предыдущую панель
-      if (data.last_list_message_id && data.last_list_message_id != current_message_id) {
-        kill_panel(ctx);
-      };
-      await new Promise(r => setTimeout(r, ms));
-      //обновить текущий список
-      await ctx.telegram.editMessageText(ctx.chat.id, current_message_id, 0,
-        '<b>'+escapeHtml(CHAT_NAME)+'</b>: '+escapeHtml(action_text),
-        {
-          reply_markup: {
-              inline_keyboard: data.list.map((element, index)=>{return [{text: element, callback_data: `kick ${index}`}]})
-              .concat([[{text: "📛 очистить", callback_data: 'clear_action'},{text: "⚙", callback_data: 'settings'}, {text: "🖨 вывести", callback_data: 'print'}, ]])
-          },
-          parse_mode: 'html',
-          reply_to_message_id: ctx.message?.message_id,
-        });
-    } else {
-      await ctx.telegram.editMessageText(
-        ctx.chat.id, current_message_id, 0,
-        '<b>'+escapeHtml(CHAT_NAME)+EMPTY_LIST_MES,
-        {reply_markup: HELP_BTN, reply_to_message_id: ctx.message?.message_id, parse_mode: 'html'})
-      .catch(err=>console.error(err));
-    };
-  } catch(err) {console.error('список не строится', err)};    
-  
-};
-
-async function help(ctx, is_message_id = undefined, ms = 0) {
+//
+async function help_helper(ctx, is_message_id = undefined, ms = 0) {
   const current_message_id = is_message_id || ctx.message?.message_id || ctx.callbackQuery?.message?.message_id;
   
   await new Promise(r => setTimeout(r, ms));
@@ -206,31 +217,101 @@ async function help(ctx, is_message_id = undefined, ms = 0) {
     {reply_to_message_id: current_message_id})
   .catch(err=>console.error('/help не смог помочь, споткнулся: ', err.name));
 };
-
-async function clear_list(ctx, is_message_id = undefined, ms = 0) {
-  const current_message_id = is_message_id || ctx.message?.message_id || ctx.callbackQuery?.message?.message_id;
-  //убедись, потом мочи
-  await ctx.telegram.editMessageText(ctx.chat.id, current_message_id, 0,
-    '<b>'+escapeHtml(CHAT_NAME)+'</b>: 😱 ВЕСЬ СПИСОК БУДЕТ УДАЛЕН!\n\n>> подтверди действие:',
-    {
+///--
+//
+///--part KICK
+bot.action('set_kick_mode_action', async (ctx) =>{
+  //confirmation
+  console.log('нажал "изменить режим"');
+  await ctx.telegram.editMessageText(
+    ctx.chat.id, ctx.callbackQuery.message?.message_id, 0,
+    `⚙ Настройки: <b>режим удаления</b> - удалять элементы по нажатию или с подтверждением?\n\n( <b>easy</b> ) по нажатию - быстрый режим удаления элементов из списка\n( <b>confirmation</b> ) с подтвеждением - после каждого нажатия на элемент списка потребуется подтвердить удаление\n\n>> текущий режим: ( ${data.kick_mode ? data.kick_mode: 'easy'} )\n>> выбери режим:`,
+    { parse_mode: 'html',
       reply_markup: {
-          inline_keyboard: [[{text:'⬅ отмена', callback_data: 'show_action'}, {text: "📛 очистить", callback_data: 'confirmed_clear_action'}]]
-      },
-      parse_mode: 'html',
-      reply_to_message_id: ctx.message?.message_id,
-    });
-};
-
-
-async function kill_panel(ctx, current_message_id = undefined) {
+      inline_keyboard: [
+        [ {text:'с подтверждением', callback_data: 'kick_mode confirmation'},
+          {text:'по нажатию', callback_data: 'kick_mode easy'}],
+        [
+          {text:'⬅ назад к настройкам', callback_data: 'settings'}
+        ],
+    ]}}).catch(err=>console.error('панель выбора режима удаления не строится', err))
+});
+//
+bot.action(/^kick_mode \w+/, async (ctx)=>{
+  console.log('выбран режим удаления... "'+ctx.callbackQuery.data+'"');
   try {
-    if (data.last_list_message_id && current_message_id != data.last_list_message_id) {
-      ctx.telegram.editMessageReplyMarkup(ctx.chat.id, data.last_list_message_id, undefined, {}).catch(err=>console.error('не нашел старых кнопок, чтобы их вычистить:\n',err.name));
+    let kick_mode = undefined;
+    switch (ctx.callbackQuery.data.slice(10)) {
+      case "confirmation":
+        kick_mode = "confirmation";
+        break;
+      case "easy":
+        kick_mode = "easy";
+        break;
     };
-  } catch(err) { console.error('не смог очистить панель под сообщением:\n', err.name)};
-};
+    await data.set_kick_mode(kick_mode);
+  } catch (err) {console.error('не смог установить разделитель: ', err.name)};
+  settings_panel_helper(ctx);
+});
+//
+bot.action(/^kick /, async (ctx) => {
+  if (ctx.callbackQuery.message?.message_id == data.last_list_message_id) {
+    const index = Number(ctx.callbackQuery.data.slice(5));
+    
+    console.log(`нажал на элемент в списке №${index} "${data.list[index]}"`);
 
-async function settings_panel(ctx, is_message_id = undefined) {
+    if (data.kick_mode === 'easy' || !data.kick_mode) {
+      kick_helper(ctx, index);
+    } else {
+      //@TODO: закончить проработку confirmation mode
+      console.log('непростой режим удаления, не изи: ', data.kick_mode);
+      ctx.answerCbQuery(`${data.list[index]} - точно сделано?`);
+      //убедись, потом мочи
+      await ctx.telegram.editMessageText(ctx.chat.id, ctx.callbackQuery.message?.message_id, 0,
+        `✋ ${escapeHtml(CHAT_NAME)}: удалить "<b>${data.list[index]}</b>" из списка?\n\n>> подтверди действие:`,
+        {
+          reply_markup: {
+              inline_keyboard: [[{text:'⬅ отмена', callback_data: 'show_action'}, {text: "👍 сделано!", callback_data: `confirmed_kick_action ${index}`}]]
+          },
+          parse_mode: 'html',
+          reply_to_message_id: ctx.message?.message_id,
+        });
+    };
+  } else {
+    ctx.answerCbQuery('🤷‍♂️ неактуальный список');
+  }
+});
+//
+bot.action(/^confirmed_kick_action /, async (ctx)=>{
+  const index = Number(ctx.callbackQuery.data.slice(22));
+  kick_helper(ctx, index);
+});
+//
+async function kick_helper(ctx, index) {
+  const answer = data.list[index] ? `${data.list[index]} - сделано! 👌` : '🤷‍♂️ не нашел в текущем списке';
+  ctx.answerCbQuery(answer);
+  await data.kick(index);
+  show_list_helper(ctx, data.last_list_message_id, 0, answer);
+};
+///--
+//
+///--part SETTINGS
+bot.action('settings', async (ctx) => {
+  console.log('нажал "настройки"');
+  data.wait_for_name(false);
+  settings_panel_helper(ctx);
+});
+//
+bot.settings(async (ctx) => {
+  console.log('ввел команду "/settings"');
+  data.wait_for_name(false);
+  kick_panel_helper(ctx);
+  const {message_id} =  await ctx.reply(LOAD_EMJ, {reply_to_message_id: ctx.message?.message_id});
+  data.set_last_list_message_id(message_id);
+  settings_panel_helper(ctx, message_id);
+});
+//
+async function settings_panel_helper(ctx, is_message_id = undefined) {
   const current_message_id = is_message_id || ctx.message?.message_id || ctx.callbackQuery?.message?.message_id;
   console.log('Панель настроек');
   try {
@@ -250,7 +331,7 @@ async function settings_panel(ctx, is_message_id = undefined) {
         inline_keyboard: [
           [ {text: `имя: ( ${escapeHtml(CHAT_NAME)} )`, callback_data: 'set_list_name_action'}],
           [ {text: `разделитель: ( ${data.delimiter === '\n' ? '↲' : data.delimiter} )`, callback_data: 'set_delimit_action'}],
-          [ {text: `режим: ( ${data.kill_mode ? data.kill_mode : 'easy'} )`, callback_data: 'set_kill_mode_action'}],
+          [ {text: `режим: ( ${data.kick_mode ? data.kick_mode : 'easy'} )`, callback_data: 'set_kick_mode_action'}],
           [ {text:'⬅ к списку', callback_data: 'show_action'} ],
         ]},
         parse_mode: 'html'
@@ -258,83 +339,8 @@ async function settings_panel(ctx, is_message_id = undefined) {
     ).catch(err=>console.error('что-то не так с построением меню настроек: ', err.name));
   } catch(err) {console.error('панель настроек не строится', err)};    
 };
-
-//            ACTION: КНОПКИ-ответы на CallBackQuery
-
-bot.action('set_kill_mode_action', async (ctx) =>{
-  //confirmation
-  console.log('нажал "изменить режим"');
-  await ctx.telegram.editMessageText(
-    ctx.chat.id, ctx.callbackQuery.message?.message_id, 0,
-    `⚙ Настройки: <b>режим удаления</b> - удалять элементы по нажатию или с подтверждением?\n\n( <b>easy</b> ) по нажатию - быстрый режим удаления элементов из списка\n( <b>confirmation</b> ) с подтвеждением - после каждого нажатия на элемент списка потребуется подтвердить удаление\n\n>> текущий режим: ( ${data.kill_mode ? data.kill_mode: 'easy'} )\n>> выбери режим:`,
-    { parse_mode: 'html',
-      reply_markup: {
-      inline_keyboard: [
-        [ {text:'с подтверждением', callback_data: 'kill_mode confirmation'},
-          {text:'по нажатию', callback_data: 'kill_mode easy'}],
-        [
-          {text:'⬅ назад к настройкам', callback_data: 'settings'}
-        ],
-    ]}}).catch(err=>console.error('панель выбора режима удаления не строится', err))
-});
-
-bot.action(/^kill_mode \w+/, async (ctx)=>{
-  console.log('выбран режим удаления... "'+ctx.callbackQuery.data+'"');
-  try {
-    let kill_mode = undefined;
-    switch (ctx.callbackQuery.data.slice(10)) {
-      case "confirmation":
-        kill_mode = "confirmation";
-        break;
-      case "easy":
-        kill_mode = "easy";
-        break;
-    };
-    await data.set_kill_mode(kill_mode);
-  } catch (err) {console.error('не смог установить разделитель: ', err.name)};
-  settings_panel(ctx);
-});
-
-bot.action(/^kick /, async (ctx) => {
-  if (ctx.callbackQuery.message?.message_id == data.last_list_message_id) {
-    const index = Number(ctx.callbackQuery.data.slice(5));
-    
-    console.log(`нажал на элемент в списке №${index} "${data.list[index]}"`);
-
-    if (data.kill_mode === 'easy' || !data.kill_mode) {
-      kill_helper(ctx, index);
-    } else {
-      //@TODO: закончить проработку confirmation mode
-      console.log('непростой режим удаления, не изи: ', data.kill_mode);
-      ctx.answerCbQuery(`${data.list[index]} - точно сделано?`);
-      //убедись, потом мочи
-      await ctx.telegram.editMessageText(ctx.chat.id, ctx.callbackQuery.message?.message_id, 0,
-        `✋ ${escapeHtml(CHAT_NAME)}: удалить "<b>${data.list[index]}</b>" из списка?\n\n>> подтверди действие:`,
-        {
-          reply_markup: {
-              inline_keyboard: [[{text:'⬅ отмена', callback_data: 'show_action'}, {text: "👍 сделано!", callback_data: `confirmed_kick_action ${index}`}]]
-          },
-          parse_mode: 'html',
-          reply_to_message_id: ctx.message?.message_id,
-        });
-    };
-  } else {
-    ctx.answerCbQuery('🤷‍♂️ неактуальный список');
-  }
-});
-
-bot.action(/^confirmed_kick_action /, async (ctx)=>{
-  const index = Number(ctx.callbackQuery.data.slice(22));
-  kill_helper(ctx, index);
-});
-
-async function kill_helper(ctx, index) {
-  const answer = data.list[index] ? `${data.list[index]} - сделано! 👌` : '🤷‍♂️ не нашел в текущем списке';
-  ctx.answerCbQuery(answer);
-  await data.kick(index);
-  show_list(ctx, data.last_list_message_id, 0, answer);
-};
-
+//
+///--list name actions
 bot.action('set_list_name_action', async (ctx)=>{
   console.log('нажал "изменить имя"');
   await ctx.telegram.editMessageText(
@@ -347,7 +353,8 @@ bot.action('set_list_name_action', async (ctx)=>{
     ]}}).catch(err=>console.error('панель настроек для ввода нового имени не строится', err));
   data.wait_for_name(true);
 });
-
+//
+///--delimiter actions
 bot.action('set_delimit_action', async (ctx)=> {
   console.log('нажал "разделитель"');
   await ctx.telegram.editMessageText(
@@ -364,7 +371,7 @@ bot.action('set_delimit_action', async (ctx)=> {
         [ {text:'⬅ назад к настройкам', callback_data: 'settings'}],
     ]}}).catch(err=>console.error('панель настроек при вводе разделителя не строится', err));
 });
-
+//
 bot.action(/^delimit \w+/, async (ctx)=>{
   console.log('выбран разделитель... "'+ctx.callbackQuery.data+'"');
   try {
@@ -383,82 +390,72 @@ bot.action(/^delimit \w+/, async (ctx)=>{
     await data.set_delimiter(delimiter);
   } catch (err) {console.error('не смог установить разделитель: ', err.name)};
 
-  settings_panel(ctx);
+  settings_panel_helper(ctx);
 });
-
-bot.action('show_action', async (ctx)=>{show_list(ctx,undefined, ms = 0, action_text='текущий 👇')});
-
+///--
+//
+///--part CLEAR
 bot.action('clear_action', async (ctx) => {
   console.log('нажал "очистить"');
-  clear_list(ctx);
+  clear_list_helper(ctx);
 });
-
+//
 bot.action('confirmed_clear_action', async (ctx)=>{
   console.log('подтвердил очистку списка"');
   ctx.answerCbQuery('🤲 список очищен!');
-  await data.clear_list();
+  await data.clear_list_helper();
   ctx.editMessageText('<b>'+escapeHtml(CHAT_NAME)+'</b>: 🤲 <i>список очищен!</i>', {reply_markup: HELP_BTN, parse_mode: 'html'})
   .catch(err=>console.error('ошибка в confirmed_clear_action:\n',err));
 });
-
-bot.action('help', async (ctx) => {
-  console.log('нажал "помощь"');
-  help(ctx);
-});
-
-bot.action('print', async (ctx) => {
-  console.log('нажал "вывести"');
-  //
-  if (!data.is_empty) {
-    ctx.answerCbQuery('готово! 🖨 можно пересылать...');
-    ctx.editMessageText(
-      '<b>'+escapeHtml(CHAT_NAME)+'</b>:\n'+data.list.map((v,i)=>{return (i+1)+'. '+'<code>' + escapeHtml(v) + '</code>'}).join('\n'),
-      {
-        reply_markup: {
-            inline_keyboard: [[
-              {text: "📛 очистить", callback_data: 'clear_action'},
-              {text: "⚙", callback_data: 'settings'},
-              {text: "🖥️ показать", callback_data: 'show_action'},
-        ]]},
-        parse_mode: 'html',
-        reply_to_message_id: ctx.message?.message_id,
-      }
-    )
-    .catch(err=>console.error('проблемы с выводом списка в сообщение', err));
-  } else {
-    ctx.answerCbQuery(CHAT_NAME+': 🤷‍♂️ текущий список пуст...');
-  };
-});
-
-bot.action('settings', async (ctx) => {
-  console.log('нажал "настройки"');
+// очистить список
+bot.command('clear', async (ctx) => {
+  console.log('ввел команду "/clear"');
   data.wait_for_name(false);
-  settings_panel(ctx);
+  kick_panel_helper(ctx);
+  const {message_id} =  await ctx.reply(LOAD_EMJ, {reply_to_message_id: ctx.message?.message_id});
+  data.set_last_list_message_id(message_id);
+  clear_list_helper(ctx, message_id);
 });
-
+//
+async function clear_list_helper(ctx, is_message_id = undefined, ms = 0) {
+  const current_message_id = is_message_id || ctx.message?.message_id || ctx.callbackQuery?.message?.message_id;
+  //убедись, потом мочи
+  await ctx.telegram.editMessageText(ctx.chat.id, current_message_id, 0,
+    '<b>'+escapeHtml(CHAT_NAME)+'</b>: 😱 ВЕСЬ СПИСОК БУДЕТ УДАЛЕН!\n\n>> подтверди действие:',
+    {
+      reply_markup: {
+          inline_keyboard: [[{text:'⬅ отмена', callback_data: 'show_action'}, {text: "📛 очистить", callback_data: 'confirmed_clear_action'}]]
+      },
+      parse_mode: 'html',
+      reply_to_message_id: ctx.message?.message_id,
+    });
+};
+///--
+//
+///--UKNOWN action
 bot.on('callback_query', async (ctx)=>{
   console.warn('незнакомая кнопка: ', ctx.callbackQuery?.data)
 });
-
-//            Ответы на СООБЩЕНИЯ
-//ответ на стикеры
+///--
+//
+///--ON MESSAGES ответы на СООБЩЕНИЯ
+// ответ на стикеры
 bot.on(message('sticker'), async (ctx) => {
   const sticker_value = 'стикер: '+ ctx.message.sticker.set_name +': '+ ctx.message.sticker.emoji;
   console.log('STIKER!\n'+sticker_value);
-  kill_panel(ctx);
+  kick_panel_helper(ctx);
   const answer = await data.insert(sticker_value) ? `"${sticker_value}" добавлено 👍` : `🤷‍♂️ "${sticker_value}" уже было в списке`;
 
   const {message_id} =  await ctx.reply('...', {reply_to_message_id: ctx.message?.message_id});
   data.set_last_list_message_id(message_id);
-  show_list(ctx, message_id, 0, answer);
+  show_list_helper(ctx, message_id, 0, answer);
 });
-
-//обработка текстового сообщения:
+//
+///--текстовые сообщения
 bot.on(message('text'), async (ctx) => {
   const text = ctx.message?.text;
-  kill_panel(ctx);
+  kick_panel_helper(ctx);
   console.log(`в ${JSON.stringify(ctx.chat,null,1)} написал сообщение: "${text}"`);
-
   try {
     //обработка ввода нового имени списка чата
     if (data.list_name.wait_for_name) {
@@ -468,7 +465,7 @@ bot.on(message('text'), async (ctx) => {
       data.wait_for_name(false);
       const { message_id } = await ctx.reply('...👍...', {reply_to_message_id: ctx.message?.message_id});
       data.set_last_list_message_id(message_id);
-      return settings_panel(ctx, message_id);
+      return settings_panel_helper(ctx, message_id);
 
     //в групповых чатах отвечать только на команды и прямые обращения (на @_ и @имя_бота_)
     } else if (ctx.chat.type != 'private') {
@@ -485,7 +482,7 @@ bot.on(message('text'), async (ctx) => {
         answer = await data.insert(answer) ? `"${answer}" добавлено 👍` : `🤷‍♂️ "${answer}" уже было в списке`;
         const { message_id } = await ctx.reply('...✍...', {reply_to_message_id: ctx.message?.message_id});
         data.set_last_list_message_id(message_id);
-        return show_list(ctx, message_id, 0, answer);
+        return show_list_helper(ctx, message_id, 0, answer);
       } else {
         console.log('общение в групповом чате, не подслушиавем...');
       };
@@ -495,7 +492,7 @@ bot.on(message('text'), async (ctx) => {
       const answer = await data.insert(text) ? `"${text}" добавлено 👍` : `🤷‍♂️ "${text}" уже было в списке`;
       const { message_id } = await ctx.reply('...✍...', {reply_to_message_id: ctx.message?.message_id});
       data.set_last_list_message_id(message_id);
-      return show_list(ctx, message_id, 0, answer);
+      return show_list_helper(ctx, message_id, 0, answer);
     
     //все остальное написанное - непонятно
     } else {
@@ -504,17 +501,16 @@ bot.on(message('text'), async (ctx) => {
     };
   } catch(err) { console.error('проблема с обработкой введеного текста',err); };
 });
-
-//        ФИНАЛ. Стартуем...
-//обработка ошибок
+///--
+//
+///--ФИНАЛ. Стартуем...
+// обработка ошибок
 bot.catch((err, ctx) => {
   console.error(`ошибка обработки: ${ctx.updateType}`, err)
 });
-
-//запуск
+// запуск
 bot.launch();
-
-// Enable graceful stop
+// enable graceful stop
 process.once('SIGINT', () => {
   console.log('Завершение работы...');
   bot.stop('SIGINT');
