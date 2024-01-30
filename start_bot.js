@@ -111,9 +111,10 @@ async function show_list_helper(ctx, is_message_id = undefined, ms = 0, action_t
         let row = [];
         if (data.edit_mode) {
           row = [
-            {text: '⬆', callback_data: `up ${index}`},
-            {text: '✏️ ' + element, callback_data: `edit ${index}`},
-            {text: '⬇', callback_data: `down ${index}`},
+            {text: '⬆', callback_data: `move_up ${index}`},
+            {text: '🗑️ '+ element, callback_data: `kick ${index}`},
+            {text: '✏️', callback_data: `edit ${index}`},
+            
           ];
         } else {
           row = [{text: element, callback_data: `kick ${index}`}];
@@ -162,6 +163,19 @@ bot.action('edit_mode_action', async (ctx) => {
   ctx.answerCbQuery(data.edit_mode ? 'включен ✍️ режим редактирования' : 'режим редактирования ✏️ выключен');
   const action_text = data.edit_mode ? ' ✍️ режим редактирования' : ' 👇'; 
   show_list_helper(ctx, undefined, 0, action_text);
+});
+
+bot.action(/^move_up \d+/, async (ctx)=>{
+  if (ctx.callbackQuery.message?.message_id == data.last_list_message_id) {
+    const index = Number(ctx.callbackQuery.data.slice(7));
+    const element = data.list[index];
+    console.log(`нажал поднять индекс №${index} "${element}"`);
+    ctx.answerCbQuery('все выше! ☝️').catch(err=>console.error('не смог показать всплывашку о поднятии в move_up:\n',err.name));
+    await data.move_up(index);
+    show_list_helper(ctx, undefined, 0, `"${element}" все выше ☝️`);
+  } else {
+    ctx.answerCbQuery('🤷‍♂️ неактуальный список');
+  }
 });
 ///--
 //
@@ -282,7 +296,7 @@ bot.action(/^kick_mode \w+/, async (ctx)=>{
   settings_panel_helper(ctx);
 });
 //
-bot.action(/^kick /, async (ctx) => {
+bot.action(/^kick \d+/, async (ctx) => {
   if (ctx.callbackQuery.message?.message_id == data.last_list_message_id) {
     const index = Number(ctx.callbackQuery.data.slice(5));
     
@@ -431,7 +445,7 @@ bot.action('clear_action', async (ctx) => {
 bot.action('confirmed_clear_action', async (ctx)=>{
   console.log('подтвердил очистку списка"');
   ctx.answerCbQuery('🤲 список очищен!');
-  await data.clear_list_helper();
+  await data.clear_list();
   ctx.editMessageText('<b>'+escapeHtml(CHAT_NAME)+'</b>: 🤲 <i>список очищен!</i>', {reply_markup: HELP_BTN, parse_mode: 'html'})
   .catch(err=>console.error('ошибка в confirmed_clear_action:\n',err));
 });

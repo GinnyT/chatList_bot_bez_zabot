@@ -120,5 +120,16 @@ module.exports = class Chat_data_in_files {
 
     async toggle_edit_mode() {
         this.edit_mode = !this.edit_mode;
-    }
+    };
+
+    async move_up(index) {
+    //толкаем вверх деструктором, но
+    //если толкаем вверх первый элемент, то он проавливается в хвост, а вся гусеница ползет вверх
+        if (index > 0) {
+            [this.list[index - 1], this.list[index]] = [this.list[index], this.list[index - 1]];
+        } else {
+            this.list.push(this.list.shift());
+        };
+    };     
+        
 };
