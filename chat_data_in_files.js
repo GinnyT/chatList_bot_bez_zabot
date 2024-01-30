@@ -17,6 +17,7 @@ module.exports = class Chat_data_in_files {
         this.delimiter = undefined;
         this.kick_mode = 'easy';
         this.edit_mode = false;
+        this.wait_for_value_index = undefined;
 
         if (typeof data === 'undefined') {
             console.warn('нет данных из файла (',Chat_data_in_files.file_path(chat_id),'), инициализируем пустышку');
@@ -34,6 +35,7 @@ module.exports = class Chat_data_in_files {
                 this.delimiter = parsed_data.delimiter;
                 this.kick_mode = parsed_data.kick_mode;
                 this.edit_mode = parsed_data.edit_mode;
+                this.wait_for_value_index = parsed_data.wait_for_value_index;
             } catch(err) {
                 console.error('ошибка файла (',Chat_data_in_files.file_path(chat_id),'):\n', err.name);
             };
@@ -89,7 +91,7 @@ module.exports = class Chat_data_in_files {
     async update() {
         //@TODO: нужны ли проверки, чтобы лишний раз не травмировать диск?
         //console.log('начинаю писать в файл UPDATE data\n','THIS=',JSON.stringify(this,null,1));
-        writeFile(Chat_data_in_files.file_path(this.id), JSON.stringify({id: this.id, list: this.list, last_list_message_id: this.last_list_message_id, list_name: this.list_name, delimiter: this.delimiter, kick_mode: this.kick_mode, edit_mode: this.edit_mode}), { encoding: 'utf-8' })
+        writeFile(Chat_data_in_files.file_path(this.id), JSON.stringify({id: this.id, list: this.list, last_list_message_id: this.last_list_message_id, list_name: this.list_name, delimiter: this.delimiter, kick_mode: this.kick_mode, edit_mode: this.edit_mode, wait_for_value_index: this.wait_for_value_index}), { encoding: 'utf-8' })
         .catch(err=>console.error(err.name,': ошибка записи в файл (',Chat_data_in_files.file_path(chat_id),')'));  
     };
 
@@ -102,6 +104,22 @@ module.exports = class Chat_data_in_files {
 
     async wait_for_name(flag = false) {
         this.list_name.wait_for_name = flag;
+    };
+
+    async wait_for_value_at(index) {
+        this.wait_for_value_index = index;
+    };
+
+    async update_value_at_wait_for_value_index(value) { 
+        //
+        if (this.wait_for_value_index && value && value.trim() != '') {
+            const element = value.toLowerCase().trim();
+            if (this.list.indexOf(element) === -1) {
+                this.list[this.wait_for_value_index] = element;
+                //console.log(`изменили элемент на "${element}"`);
+                return element;
+            } else { return undefined };
+        };
     };
 
     async set_list_name(name) {
