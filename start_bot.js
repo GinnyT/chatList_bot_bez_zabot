@@ -106,14 +106,32 @@ async function show_list_helper(ctx, is_message_id = undefined, ms = 0, action_t
         kill_panel_helper(ctx);
       };
       await new Promise(r => setTimeout(r, ms));
+      //сформировать массив элементов
+      let elemets_arr = data.list.map((element, index)=>{
+        let row = [];
+        if (data.edit_mode) {
+          row = [
+            {text: '⬆', callback_data: `up ${index}`},
+            {text: '✏️ ' + element, callback_data: `edit ${index}`},
+            {text: '⬇', callback_data: `down ${index}`},
+          ];
+        } else {
+          row = [{text: element, callback_data: `kick ${index}`}];
+        }
+        return row;
+      });
+      
       //обновить текущий список
       await ctx.telegram.editMessageText(ctx.chat.id, current_message_id, 0,
         '<b>'+escapeHtml(CHAT_NAME)+'</b>: '+escapeHtml(action_text),
         {
           reply_markup: {
-              inline_keyboard: data.list.map((element, index)=>{return [{text: element, callback_data: `kick ${index}`}]})
-              .concat([[{text: "📛 очистить", callback_data: 'clear_action'},{text: "⚙", callback_data: 'settings'}, {text: "🖨 вывести", callback_data: 'print'}, ]])
-          },
+              inline_keyboard: elemets_arr.concat([[
+                {text: "📛 очистить", callback_data: 'clear_action'},
+                {text: data.edit_mode ? '✍️...' : '✏️', callback_data: 'edit_mode_action'},
+                {text: "⚙", callback_data: 'settings'},
+                {text: "🖨 вывести", callback_data: 'print'}, 
+          ]])},
           parse_mode: 'html',
           reply_to_message_id: ctx.message?.message_id,
         });
@@ -135,6 +153,16 @@ async function kill_panel_helper(ctx, current_message_id = undefined) {
     };
   } catch(err) { console.error('не смог очистить панель под сообщением:\n', err.name)};
 };
+///--
+//
+///--part EDIT
+bot.action('edit_mode_action', async (ctx) => {
+  console.log('нажал режим "редактирования", было:', data.edit_mode);
+  await data.toggle_edit_mode();
+  ctx.answerCbQuery(data.edit_mode ? 'включен ✍️ режим редактирования' : 'режим редактирования ✏️ выключен');
+  const action_text = data.edit_mode ? ' ✍️ режим редактирования' : ' 👇'; 
+  show_list_helper(ctx, undefined, 0, action_text);
+});
 ///--
 //
 ///--part PRINT
@@ -330,7 +358,7 @@ async function settings_panel_helper(ctx, is_message_id = undefined) {
       {reply_markup: {
         inline_keyboard: [
           [ {text: `имя: ( ${escapeHtml(CHAT_NAME)} )`, callback_data: 'set_list_name_action'}],
-          [ {text: `разделитель: ( ${data.delimiter === '\n' ? '↲' : data.delimiter} )`, callback_data: 'set_delimit_action'}],
+          [ {text: `разделитель: ( ${data.delimiter === '\n' ? '⏎' : data.delimiter} )`, callback_data: 'set_delimit_action'}],
           [ {text: `режим: ( ${data.kick_mode ? data.kick_mode : 'easy'} )`, callback_data: 'set_kick_mode_action'}],
           [ {text:'⬅ к списку', callback_data: 'show_action'} ],
         ]},
@@ -359,12 +387,12 @@ bot.action('set_delimit_action', async (ctx)=> {
   console.log('нажал "разделитель"');
   await ctx.telegram.editMessageText(
     ctx.chat.id, ctx.callbackQuery.message?.message_id, 0,
-    `⚙ Настройки: режим ввода значений списка через разделитель...\n\nЕсли разделитель задан, можно вводить несколько значений за один раз. Например, ввод: "хлеб, лук, масло" без разделителя будет записан в одну строку списка. Если же выбрать разделитель "запятая", то список пополнится каждым значением отдельно: "хлеб", "лук" и "масло".\n\n>> текущий разделитель: ( ${data.delimiter === '\n' ? '↲' : data.delimiter} )\n>> выбери разделитель:`,
+    `⚙ Настройки: режим ввода значений списка через разделитель...\n\nЕсли разделитель задан, можно вводить несколько значений за один раз. Например, ввод: "хлеб, лук, масло" без разделителя будет записан в одну строку списка. Если же выбрать разделитель "запятая", то список пополнится каждым значением отдельно: "хлеб", "лук" и "масло".\n\n>> текущий разделитель: ( ${data.delimiter === '\n' ? '⏎' : data.delimiter} )\n>> выбери разделитель:`,
     { parse_mode: 'html',
       reply_markup: {
       inline_keyboard: [
         [ {text:'( без ): каждый ввод - новая запись', callback_data: 'delimit null'}],
-        [ {text:'( ↲ ) с новой строки', callback_data: 'delimit enter'}],
+        [ {text:'( ⏎ ) с новой строки', callback_data: 'delimit enter'}],
         [ {text:'( , ) запятая', callback_data: 'delimit comma'},
           {text:'( ; ) точка с запятой', callback_data: 'delimit semicolon'}
         ],
