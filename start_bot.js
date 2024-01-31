@@ -20,6 +20,7 @@ const HELP_BTN = {inline_keyboard: [[{text: "помощь", callback_data: 'help
 const LIST_N_HELP_BTN = {inline_keyboard: [[LIST_BTN.inline_keyboard[0][0], HELP_BTN.inline_keyboard[0][0]]]}
 const LOAD_EMJ = '...\u{1F90C}...';
 const EMPTY_LIST_MES = '</b>: <i>пока пусто...</i>🤷‍♂️ запиши что-нибудь в свой список:';
+//хелпер для избежания неприятностей в режиме parse-mode html
 const escapeHtml = (unsafe) => {
   return unsafe.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
 };
@@ -532,7 +533,7 @@ bot.on(message('text'), async (ctx) => {
   console.log(`в ${JSON.stringify(ctx.chat,null,1)} написал сообщение: "${text}"`);
   try {
     //обработка редактирования существующего элемента
-    if (data.wait_for_value_index) {
+    if (data.wait_for_value_index >= 0) {
       console.log('обработка редактирования существующего элемента');
       const answer = await data.update_value_at_wait_for_value_index(text) ? `"${text}" изменено 👍` : `🤷‍♂️ "${text}" уже было в списке`;
       const { message_id } = await ctx.reply('...✍...', {reply_to_message_id: ctx.message?.message_id});

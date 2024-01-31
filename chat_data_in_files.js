@@ -112,7 +112,7 @@ module.exports = class Chat_data_in_files {
 
     async update_value_at_wait_for_value_index(value) { 
         //
-        if (this.wait_for_value_index && value && value.trim() != '') {
+        if ((this.wait_for_value_index >= 0) && value && (value.trim() != '')) {
             const element = value.toLowerCase().trim();
             if (this.list.indexOf(element) === -1) {
                 this.list[this.wait_for_value_index] = element;
@@ -142,7 +142,7 @@ module.exports = class Chat_data_in_files {
 
     async move_up(index) {
     //толкаем вверх деструктором, но
-    //если толкаем вверх первый элемент, то он проавливается в хвост, а вся гусеница ползет вверх
+    //если толкаем вверх первый элемент, то он проваливается в хвост, а вся гусеница ползет вверх
         if (index > 0) {
             [this.list[index - 1], this.list[index]] = [this.list[index], this.list[index - 1]];
         } else {
