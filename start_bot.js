@@ -419,7 +419,7 @@ bot.action('set_list_name_action', async (ctx)=>{
   console.log('нажал "изменить имя"');
   await ctx.telegram.editMessageText(
     ctx.chat.id, ctx.callbackQuery.message?.message_id, 0,
-    `⚙ Настройки: изменение названия списка\n\n>> текущее значение: <s>${escapeHtml(CHAT_NAME)}</s>\n>> введи новое значение: <i>(до 15 символов)</i>:`,
+    `⚙ Настройки: изменение названия списка\n\n>> текущее значение: <s>${escapeHtml(CHAT_NAME)}</s>\n>> введи новое значение: <i>(до 25 символов)</i>:`,
     { parse_mode: 'html',
       reply_markup: {
       inline_keyboard: [
@@ -542,9 +542,9 @@ bot.on(message('text'), async (ctx) => {
       return show_list_helper(ctx, message_id, 0, answer);
     //обработка ввода нового имени списка чата
     } else if (data.list_name.wait_for_name) {
-      const list_name15 = text.slice(0, 15);
-      await data.set_list_name(list_name15);
-      CHAT_NAME = list_name15;
+      const list_name25 = text.slice(0, 25);
+      await data.set_list_name(list_name25);
+      CHAT_NAME = list_name25;
       data.wait_for_name(false);
       const { message_id } = await ctx.reply('...👍...', {reply_to_message_id: ctx.message?.message_id});
       data.set_last_list_message_id(message_id);
