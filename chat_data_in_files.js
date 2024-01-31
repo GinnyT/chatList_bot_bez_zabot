@@ -124,7 +124,7 @@ module.exports = class Chat_data_in_files {
 
     async set_list_name(name) {
         if (name) {
-            this.list_name.name = name.slice(0,15);
+            this.list_name.name = name.slice(0,25);
         };
     };
     
