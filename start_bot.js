@@ -9,7 +9,7 @@ const { Telegraf } = require('telegraf');
 const { message } = require('telegraf/filters');
 //@TODO: не нашел простой способ вызвать единожды асинхронную функцию getMe() так, чтобы получить актуальное имя бота, но не грузить запросом каждый вызов внутри use. пока решил зашить в окружение
 const bot = new Telegraf(process.env.TOKEN);
-console.log('Стартует бот: ',process.env.BOT_NAME)
+console.log(`Стартует бот: @${process.env.BOT_NAME}`)
 
 // константы
 let counter = 0;
@@ -33,7 +33,7 @@ bot.use(async (ctx, next) => {
   //const getMe = await bot.telegram.getMe((res)=>{return res});
   //console.log('Bot GetMe=\n',JSON.stringify(getMe,null,1));
 
-  console.log(`---------------\n${counter++}) прилетело из чата: ${ctx.chat?.id} от ${ctx.from.username} тип: ${ctx.updateType}`);
+  console.log(`---------------\n${counter++}) прилетело из чата: ${JSON.stringify(ctx.chat)} от ${ctx.from.username} тип: ${ctx.updateType}`);
   
   if (ctx.updateType === 'inline_query') {
     console.warn('inline_query (не обрабатывается)=\n',JSON.stringify(ctx.inlineQuery,null,1));
@@ -69,7 +69,30 @@ bot.telegram.setMyCommands([
   {
     command: 'settings',
     description: 'настройки ⚙',
-  },], /* {scope: {type: 'all_private_chats'}}, 'ru' */
+  }],{scope: {type: 'default'}, language_code: 'ru'}
+);
+//
+bot.telegram.setMyCommands([
+  {
+    command: 'help',
+    description: 'description of how everything works here 🤔',
+  },
+  {
+    command: 'list',
+    description: 'show the contents of the current list of this chat 💬',
+  },
+  { 
+    command: 'print',
+    description: 'print out the list in a message 🖨',
+  },
+  /* {
+    command: 'clear',
+    description: 'очистить список 📛',
+  }, */
+  {
+    command: 'settings',
+    description: 'set list name, separator or input mode ⚙',
+  }],{scope: {type: 'default'}, language_code: 'en'}
 );
 ///--
 //
@@ -197,10 +220,6 @@ bot.action(/^edit \d+/, async(ctx) =>{
       }
     ).catch(err=>console.error('панель настроек для ввода нового имени не строится', err));
     data.wait_for_value_at(index);
-
-    /* ctx.answerCbQuery('все выше! ☝️').catch(err=>console.error('не смог показать всплывашку о поднятии в move_up:\n',err.name));
-    await data.move_up(index);
-    show_list_helper(ctx, undefined, 0, `"${element}" все выше ☝️`); */
   } else {
     ctx.answerCbQuery('🤷‍♂️ неактуальный список');
   }
@@ -527,6 +546,10 @@ bot.on(message('sticker'), async (ctx) => {
 });
 //
 ///--текстовые сообщения
+//@TODO: проработать дела в групповом чате
+//... если, например, задан вопрос, а люди переписываются, то игнорить
+//... если обратились к боту через @ и дали команду: @bot /start ... то надо бы отработать команду
+//... заменить if на switch ?
 bot.on(message('text'), async (ctx) => {
   const text = ctx.message?.text;
   kill_panel_helper(ctx);
@@ -551,36 +574,46 @@ bot.on(message('text'), async (ctx) => {
       return settings_panel_helper(ctx, message_id);
 
     //в групповых чатах отвечать только на команды и прямые обращения (на @_ и @имя_бота_)
+    //type of chat, can be either “private”, “group”, “supergroup” or “channel”
     } else if (ctx.chat.type != 'private') {
       let answer;
-      //@TODO: HTML_escape
+      const a = text.slice(0,process.env.BOT_NAME.length + 2);
+      const b = `@${process.env.BOT_NAME} `;
+      const r = a === b;
+
+      //@TODO: HTML_escape?
       if (text.slice(0,2) === '@ ') { 
         answer = text.slice(2);
-      } else if (text.slice(0,process.env.BOT_NAME.length+1) === `@${process.env.BOT_NAME}`) {
-        answer = text.slice(process.env.BOT_NAME.length + 1)
+      } else if (text.slice(0,process.env.BOT_NAME.length + 2) === `@${process.env.BOT_NAME} `) {
+        console.log('ты там, где надо!');
+        answer = text.slice(process.env.BOT_NAME.length + 2)
       };
 
       if (answer) {
-        console.log('обращение в групповом чате, пишем: ',answer);
-        answer = await data.insert(answer) ? `"${answer}" добавлено 👍` : `🤷‍♂️ "${answer}" уже было в списке`;
-        const { message_id } = await ctx.reply('...✍...', {reply_to_message_id: ctx.message?.message_id});
-        data.set_last_list_message_id(message_id);
-        return show_list_helper(ctx, message_id, 0, answer);
+        if (answer.slice(0,1) === '/') {
+          //команда в групповом чате. игнор с поучением
+          const { message_id } = await ctx.reply(`если хочешь задать мне команду, попробуй воспользоваться меню ( / ) или запиши в другом порядке: ${answer}@${process.env.BOT_NAME}`);
+          return data.set_last_list_message_id(message_id);
+        } else {
+          console.log('обращение в групповом чате, пишем: ',answer);
+          answer = await data.insert(answer) ? `"${answer}" добавлено 👍` : `🤷‍♂️ "${answer}" уже было в списке`;
+          const { message_id } = await ctx.reply('...✍...', {reply_to_message_id: ctx.message?.message_id});
+          data.set_last_list_message_id(message_id);
+          return show_list_helper(ctx, message_id, 0, answer);
+        };
       } else {
         console.log('общение в групповом чате, не подслушиавем...');
       };
-
     //любоЕ слово попадает в список, кроме ключевых слов выше, кроме команд и спец. символов
     } else if ((/[^\/]/).test(text[0])) {
       const answer = await data.insert(text) ? `"${text}" добавлено 👍` : `🤷‍♂️ "${text}" уже было в списке`;
       const { message_id } = await ctx.reply('...✍...', {reply_to_message_id: ctx.message?.message_id});
       data.set_last_list_message_id(message_id);
       return show_list_helper(ctx, message_id, 0, answer);
-    
     //все остальное написанное - непонятно
     } else {
       const { message_id } = await ctx.reply(`незнакомая команда 🤷‍♂️`, {reply_to_message_id: ctx.message?.message_id} );
-      data.set_last_list_message_id(message_id);
+      return data.set_last_list_message_id(message_id);
     };
   } catch(err) { console.error('проблема с обработкой введеного текста',err); };
 });
