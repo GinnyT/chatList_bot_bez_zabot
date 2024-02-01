@@ -60,7 +60,7 @@ bot.telegram.setMyCommands([
   },
   { 
     command: 'print',
-    description: 'вывести список на "печать" в сообщение 🖨',
+    description: 'вывести список 🖨',
   },
   /* {
     command: 'clear',
@@ -75,15 +75,15 @@ bot.telegram.setMyCommands([
 bot.telegram.setMyCommands([
   {
     command: 'help',
-    description: 'description of how everything works here 🤔',
+    description: 'descriptions 🤔',
   },
   {
     command: 'list',
-    description: 'show the contents of the current list of this chat 💬',
+    description: 'the list of the chat 💬',
   },
   { 
     command: 'print',
-    description: 'print out the list in a message 🖨',
+    description: 'print out the 🖨',
   },
   /* {
     command: 'clear',
@@ -91,7 +91,7 @@ bot.telegram.setMyCommands([
   }, */
   {
     command: 'settings',
-    description: 'set list name, separator or input mode ⚙',
+    description: 'settings of the chat list ⚙',
   }],{scope: {type: 'default'}, language_code: 'en'}
 );
 ///--
@@ -155,7 +155,7 @@ async function show_list_helper(ctx, is_message_id = undefined, ms = 0, action_t
           reply_markup: {
               inline_keyboard: elemets_arr.concat([[
                 {text: "📛 очистить", callback_data: 'clear_action'},
-                {text: data.edit_mode ? '✍️...' : '✏️', callback_data: 'edit_mode_action'},
+                {text: data.edit_mode ? '✅ ✏️' : '✏️', callback_data: 'edit_mode_action'},
                 {text: "⚙", callback_data: 'settings'},
                 {text: "🖨 вывести", callback_data: 'print'}, 
           ]])},
@@ -212,7 +212,7 @@ bot.action(/^edit \d+/, async(ctx) =>{
 
     await ctx.telegram.editMessageText(
       ctx.chat.id, data.last_list_message_id, 0,
-      `${escapeHtml(CHAT_NAME)}: ✏️ ...\n\n>> текущее значение: <s>${element}</s>\n>> введи новое значение:`,
+      `${escapeHtml(CHAT_NAME)}: ✏️ ...\n\n>> текущее значение: <s>${escapeHtml(element)}</s>\n>> введи новое значение:`,
       {
         parse_mode: 'html',
         reply_markup: {
@@ -546,10 +546,6 @@ bot.on(message('sticker'), async (ctx) => {
 });
 //
 ///--текстовые сообщения
-//@TODO: проработать дела в групповом чате
-//... если, например, задан вопрос, а люди переписываются, то игнорить
-//... если обратились к боту через @ и дали команду: @bot /start ... то надо бы отработать команду
-//... заменить if на switch ?
 bot.on(message('text'), async (ctx) => {
   const text = ctx.message?.text;
   kill_panel_helper(ctx);
