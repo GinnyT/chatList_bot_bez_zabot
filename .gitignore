@@ -6,8 +6,13 @@ old_temp/
 tests/
 storage/*
 !storage/.gitkeep 
+secrets/
 
 #
+compose.yaml
+Dockerfile
+README.Docker.md
+.dockerignore
 
 # Logs
 logs

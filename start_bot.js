@@ -1,7 +1,9 @@
 ///--GLOBAL statements
 //
 // подключения
-require('dotenv').config({ path: `${process.env.NODE_ENV}.env` });
+if (process.env.NODE_ENV != 'production') {
+  require('dotenv').config({ path: `${process.env.NODE_ENV}.env` });
+};
 
 const DATA = require('./chat_data_in_files'); //данные в файле
 
@@ -10,6 +12,7 @@ const { message } = require('telegraf/filters');
 //@TODO: не нашел простой способ вызвать единожды асинхронную функцию getMe() так, чтобы получить актуальное имя бота, но не грузить запросом каждый вызов внутри use. пока решил зашить в окружение
 const bot = new Telegraf(process.env.TOKEN);
 console.log(`Стартует бот: @${process.env.BOT_NAME}`)
+console.log(`process.env=\n${JSON.stringify(process.env, null, 1)}`);
 
 // константы
 let counter = 0;

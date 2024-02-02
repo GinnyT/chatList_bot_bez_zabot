@@ -1,4 +1,7 @@
-require('dotenv').config({ path: `${process.env.NODE_ENV}.env` });
+if (process.env.NODE_ENV != 'production') {
+    require('dotenv').config({ path: `${process.env.NODE_ENV}.env` });
+};
+
 const { readFile, writeFile } = require('fs/promises');
 
 //      Хранилка реализована на файлах в папке storage
