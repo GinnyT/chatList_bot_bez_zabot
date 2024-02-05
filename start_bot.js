@@ -1,9 +1,9 @@
 ///--GLOBAL statements
 //
 // подключения
-if (process.env.NODE_ENV != 'production') {
+/* if (process.env.NODE_ENV != 'production') {
   require('dotenv').config({ path: `${process.env.NODE_ENV}.env` });
-};
+}; */
 
 const DATA = require('./chat_data_in_files'); //данные в файле
 

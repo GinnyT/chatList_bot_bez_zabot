@@ -1,6 +1,6 @@
-if (process.env.NODE_ENV != 'production') {
+/* if (process.env.NODE_ENV != 'production') {
     require('dotenv').config({ path: `${process.env.NODE_ENV}.env` });
-};
+}; */
 
 const { readFile, writeFile } = require('fs/promises');
 
