@@ -9,7 +9,6 @@ storage/*
 !storage/.gitkeep 
 secrets/
 Dockerfile-*
-.gitignore
 
 #
 compose.yaml
