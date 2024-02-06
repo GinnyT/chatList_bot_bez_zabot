@@ -4,11 +4,11 @@ FROM node:${NODE_VERSION}-alpine
 
 ENV NODE_ENV production
 
-ENV BOT_NAME chatlist_bot_bez_zabot
+ENV BOT_NAME chatList_bot_bez_zabot
 
 ENV STORAGE_LOCATION /home/node/app/storage/cl
 
-#RUN mkdir -p /home/node/app/node_modules && chown -R node:node /home/node/app
+#ENV TOKEN=
 
 WORKDIR /home/node/app
 
@@ -23,6 +23,6 @@ COPY --chown=node:node . .
 
 RUN mkdir -p /home/node/app/storage/cl && chown -R node:node /home/node/app/storage/cl
 
-EXPOSE 3333
+#EXPOSE 3333
 
 CMD node start_bot.js
