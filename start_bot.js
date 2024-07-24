@@ -378,7 +378,14 @@ bot.action(/^kick \d+/, async (ctx) => {
 //
 bot.action(/^confirmed_kick_action /, async (ctx)=>{
   const index = Number(ctx.callbackQuery.data.slice(22));
-  kick_helper(ctx, index);
+  if (data.list[index]) {
+    kick_helper(ctx, index);
+  } else {
+  //BUG!
+  // см. output.txt
+  //
+    console.warn('(!!!) CTX:\n',ctx,'\n--------\nINDEX=',index);
+  }
 });
 //
 async function kick_helper(ctx, index) {
