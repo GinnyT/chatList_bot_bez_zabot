@@ -3,7 +3,7 @@
     "telegraf": "^4.15.3"
   },
   "name": "chatlist_bot_bez_zabot",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "Telegram bot that creates an individual ordered to-do or shopping list for each chat",
   "main": "start_bot.js",
   "scripts": {
