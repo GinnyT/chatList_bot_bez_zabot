@@ -2,7 +2,6 @@
 
 const DB = require('./chat_data_in_db');
 const { Pool } = require('pg');
-
 const { Telegraf } = require('telegraf');
 const { message } = require('telegraf/filters');
 
@@ -14,11 +13,10 @@ console.log(`Стартует бот: @${process.env.BOT_NAME}`);
 //console.log(`process.env=\n${JSON.stringify(process.env, null, 1)}`);
 
 //Экземпляр бд коннектора
-const db_pool = new Pool();
-
+//const db_pool = new Pool();
 // константы
 let counter = 0;
-
+let db_data;
 let CHAT_NAME = 'Список'; //@todo зачем?
 const LIST_BTN = {inline_keyboard: [[{text: CHAT_NAME, callback_data: 'list'}]] }
 const HELP_BTN = {inline_keyboard: [[{text: "помощь", callback_data: 'help_action'}]] }
@@ -33,23 +31,22 @@ const escapeHtml = (unsafe) => {
 //
 ///--ОБОЛОЧКА обработки каждого сообщения
 bot.use(async (ctx, next) => {
-
   const start_time = new Date();
-
-  console.log(`---------------\n${counter++}) прилетело из чата: ${JSON.stringify(ctx.chat)} от ${ctx.from.username} тип: ${ctx.updateType}`);
+  console.log(`\n${new Date().toLocaleString()}---------------начало обработки:\n прилетело из чата: ${JSON.stringify(ctx.chat)} от ${ctx.from.username} тип: ${ctx.updateType}`);
   
   if (ctx.updateType === 'inline_query') {
     console.warn('inline_query (не обрабатывается)=\n',JSON.stringify(ctx.inlineQuery,null,1));
   //
   } else {
-    db_data = await DB.init(ctx.chat, db_pool);
+    db_data = await DB.init(ctx.chat, new Pool());
     CHAT_NAME = db_data.list_name.name;
+    console.log(CHAT_NAME);
     await next();
     await db_data.db.end();
-   }
-
+  }
   console.log(`---------------время обработки: ${new Date() - start_time}`);
 });
+
 // МЕНЮ команд
 bot.telegram.setMyCommands([
   {
@@ -64,10 +61,6 @@ bot.telegram.setMyCommands([
     command: 'print',
     description: 'вывести список 🖨',
   },
-  /* {
-    command: 'clear',
-    description: 'очистить список 📛',
-  }, */
   {
     command: 'settings',
     description: 'настройки ⚙',
@@ -87,10 +80,6 @@ bot.telegram.setMyCommands([
     command: 'print',
     description: 'print out the 🖨',
   },
-  /* {
-    command: 'clear',
-    description: 'очистить список 📛',
-  }, */
   {
     command: 'settings',
     description: 'settings of the chat list ⚙',
@@ -127,7 +116,7 @@ bot.command('list', async (ctx) => {
 //
 async function show_list_helper(ctx, is_message_id = undefined, ms = 0, action_text='') {
   const current_message_id = is_message_id || ctx.message?.message_id || ctx.callbackQuery?.message?.message_id;
-  console.log('Запущена функция построения списка show_list_helper.\n  db_data.last_list_message_id=',db_data.last_list_message_id,'\n  current_message_id=',current_message_id);
+  //console.log('Запущена функция построения списка show_list_helper.\n  db_data.last_list_message_id=',db_data.last_list_message_id,'\n  current_message_id=',current_message_id);
   try {
     if (!db_data.is_empty) {
       //убить предыдущую панель
@@ -357,11 +346,9 @@ bot.action(/^kick_mode \w+/, async (ctx)=>{
 bot.action(/^kick \d+/, async (ctx) => {
   if (ctx.callbackQuery.message?.message_id == db_data.last_list_message_id) {
     const index = Number(ctx.callbackQuery.data.slice(5));
-    
     console.log(`нажал на элемент в списке №${index} "${db_data.list[index].value}"`);
-
     if (db_data.kick_mode === 'easy' || !db_data.kick_mode) {
-      kick_helper(ctx, index);
+      await kick_helper(ctx, index);
     } else {
       console.log('непростой режим удаления, не изи: ', db_data.kick_mode);
       ctx.answerCbQuery((db_data.list[index].value.length > 182 ? db_data.list[index].value.slice(0,182).concat('...') : db_data.list[index].value).concat(' точно сделано?'))
@@ -385,19 +372,16 @@ bot.action(/^kick \d+/, async (ctx) => {
 bot.action(/^confirmed_kick_action /, async (ctx)=>{
   const index = Number(ctx.callbackQuery.data.slice(22));
   if (db_data.list[index]) {
-    kick_helper(ctx, index);
+    await kick_helper(ctx, index);
   } else {
-  //BUG!
-  // см. output.txt
-  //
     console.warn('(!!!) CTX:\n',ctx,'\n--------\nINDEX=',index);
   }
 });
 //
 async function kick_helper(ctx, index) {
   const answer = (db_data.list[index].value.length > 184 ? db_data.list[index].value.slice(0,184).concat('...') : db_data.list[index].value).concat(' - сделано! 👍');
-  ctx.answerCbQuery(answer).catch(err=>console.error('не смог показать всплывашку в kick_helper:\n', err));
   await db_data.kick(index);
+  ctx.answerCbQuery(answer).catch(err=>console.error('не смог показать всплывашку в kick_helper:\n', err));
   show_list_helper(ctx, db_data.last_list_message_id, 0, answer);
  }
 ///--
@@ -565,7 +549,7 @@ bot.on(message('sticker'), async (ctx) => {
 bot.on(message('text'), async (ctx) => {
   const text = ctx.message?.text;
   kill_panel_helper(ctx);
-  console.log(`в ${JSON.stringify(ctx.chat,null,1)} написал сообщение: "${text}"`);
+  //console.log(`в ${JSON.stringify(ctx.chat,null,1)} написал сообщение: "${text}"`);
   try {
     //обработка редактирования существующего элемента
     if (db_data.wait_for_value_index && db_data.wait_for_value_index >= 0) {
@@ -596,9 +580,8 @@ bot.on(message('text'), async (ctx) => {
       if (text.slice(0,2) === '@ ') { 
         answer = text.slice(2);
       } else if (text.slice(0,process.env.BOT_NAME.length + 2) === `@${process.env.BOT_NAME} `) {
-        console.log('ты там, где надо!');
-        answer = text.slice(process.env.BOT_NAME.length + 2)
-       }
+          answer = text.slice(process.env.BOT_NAME.length + 2)
+      }
 
       if (answer) {
         if (answer.slice(0,1) === '/') {
@@ -614,12 +597,12 @@ bot.on(message('text'), async (ctx) => {
          }
       } else {
         console.log('общение в групповом чате, не подслушиавем...');
-       }
+      }
     //любоЕ слово попадает в список, кроме ключевых слов выше, кроме команд и спец. символов
     } else if ((/[^\/]/).test(text[0])) {
       const res = await db_data.insert(text);
       const answer = res ? `"${text}" добавлено 👍` : `🤷‍♂️ "${text}" уже было в списке`;
-      console.log(`RES=${res}\nANSWER=${answer}`);
+      console.log(`${answer}`);
       const { message_id } = await ctx.reply('...✍...', {reply_to_message_id: ctx.message?.message_id});
       await db_data.set_last_list_message_id(message_id);
       return show_list_helper(ctx, message_id, 0, answer);
@@ -627,7 +610,7 @@ bot.on(message('text'), async (ctx) => {
     } else {
       const { message_id } = await ctx.reply(`незнакомая команда 🤷‍♂️`, {reply_to_message_id: ctx.message?.message_id} );
       return await db_data.set_last_list_message_id(message_id);
-     }
+    }
   } catch(err) { console.error('проблема с обработкой введеного текста',err);  }
 });
 ///--

@@ -1,15 +1,16 @@
 {
   "dependencies": {
     "pg": "^8.12.0",
-    "telegraf": "^4.15.3"
+    "telegraf": "^4.16.3"
   },
   "name": "chatlist_bot_bez_zabot",
-  "version": "0.3.3",
+  "version": "0.4.0",
   "description": "Telegram bot that creates an individual ordered to-do or shopping list for each chat",
   "main": "start_bot.js",
   "scripts": {
-    "start-gt": "set NODE_ENV=gt&& node start_bot.js",
-    "start-cl": "set NODE_ENV=cl&& node start_bot.js",
+    "start": "node start_bot.js",
+    "start-gt": "node --env-file gt.env start_bot.js",
+    "start-cl": "node --env-file cl.env start_bot.js",
     "pause": "node pause.js"
   },
   "author": "Tox GinnyTee Milkoff",

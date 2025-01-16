@@ -47,9 +47,7 @@ module.exports = class Chat_data_in_db {
         this.last_list_message_id = chat.last_list_message_id;
         this.wait_for_value_index = chat.wait_for_value_index;
         this.list = data.rows.map((field)=>({value: field.value, order: field.stuff_order, stuff_id: field.stuff_id})).filter(element=>element.value != null); //сортировка элементов достигается сортировкой выборки SQL: SORT BY field.stuff_order
-        //console.warn('!!! работаем с БД!!!');
         console.log(this);
-        //console.dir(data);
         this.db = pool;
      }
 
@@ -105,13 +103,16 @@ module.exports = class Chat_data_in_db {
 
     async kick(index) {
         const record = {
-            text: 'DELETE FROM CHAT_HAS_STUFF WHERE tg_chat_id = $1 AND stuff_id in (SELECT id FROM STUFF WHERE value = $2)',
-            values: [this.tg_chat_id, this.list[index].value]
+            text: 'DELETE FROM CHAT_HAS_STUFF WHERE tg_chat_id = $1 AND stuff_id = $2',
+            values: [this.tg_chat_id, this.list[index].stuff_id]
          } 
         await this.db.query(record)
-            .then(this.list.splice(index, 1))
-            .catch(err=>console.error('ошибка записи в БД:\n',err));
-     }
+            .then(()=>{
+                console.log(`Элемент stuff_id=${this.list[index].stuff_id} (${this.list[index].value}) успешно удален из чата №${this.tg_chat_id}`);
+                this.list.splice(index, 1);
+            })
+            .catch(err=>console.error('ошибка записи в БД при удалении объекта:\n',err));
+    }
 
     async clear_list() {
         const record = {
@@ -121,7 +122,7 @@ module.exports = class Chat_data_in_db {
         await this.db.query(record)
             .then(this.list = [])
             .catch(err=>console.error('ошибка записи в БД:\n',err));
-     }
+    }
 
     async set_last_list_message_id(message_id) {
         if (message_id && this.last_list_message_id != message_id) {
@@ -133,7 +134,7 @@ module.exports = class Chat_data_in_db {
                 .then(this.last_list_message_id = message_id)
                 .catch(err=>console.error('ошибка записи в БД:\n',err));
         }
-     }
+    }
 
     async wait_for_name(flag = false) {
         if(this.list_name.wait_for_name != flag) {
@@ -145,7 +146,7 @@ module.exports = class Chat_data_in_db {
                 .then(this.list_name.wait_for_name = flag)
                 .catch(err=>console.error('ошибка записи в БД:\n',err));
         }
-     }
+    }
 
     async wait_for_value_at(index) {
         if(this.wait_for_value_index != index) {
@@ -157,7 +158,7 @@ module.exports = class Chat_data_in_db {
                 .then(this.wait_for_value_index = index)
                 .catch(err=>console.error('ошибка записи в БД:\n',err));
         }
-     }
+    }
 
     async update_value_at_wait_for_value_index(value) { 
         if ((this.wait_for_value_index >= 0) && (value?.trim() != '')) {
@@ -189,8 +190,8 @@ module.exports = class Chat_data_in_db {
                     console.error('ошибка записи в БД, выполнен ROLLBACK:\n',err);
                   }
             } else { return undefined  }
-         }
-     }
+        }
+    }
 
     async set_list_name(name) {
         if (name) {
@@ -203,7 +204,7 @@ module.exports = class Chat_data_in_db {
                 .then(this.list_name.name = correct_name)
                 .catch(err=>console.error('ошибка записи в БД:\n',err));
          }
-     }
+    }
     
     async set_delimiter(delimiter) {
         if(this.delimiter != delimiter) {
@@ -215,7 +216,7 @@ module.exports = class Chat_data_in_db {
                 .then(this.delimiter = delimiter)
                 .catch(err=>console.error('ошибка записи в БД:\n',err));
         }
-     }
+    }
 
     async set_kick_mode(mode) {
         if(this.kick_mode != mode){
@@ -227,7 +228,7 @@ module.exports = class Chat_data_in_db {
                 .then(this.kick_mode = mode)
                 .catch(err=>console.error('ошибка записи в БД:\n',err));
         }
-     }
+    }
 
     async toggle_edit_mode() {
         const record = {
@@ -237,7 +238,7 @@ module.exports = class Chat_data_in_db {
         await this.db.query(record)
             .then(this.edit_mode = !this.edit_mode)
             .catch(err=>console.error('ошибка записи в БД:\n',err));
-     }
+    }
 
     //Перемещение элементов вверх. Толкаем элемент вверх, но если толкаем первый элемент, то он проваливается в хвост, а вся гусеница ползет вверх
     async move_up(index) {
